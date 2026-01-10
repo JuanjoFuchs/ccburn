@@ -963,14 +963,39 @@ gh repo sync JuanjoFuchs/winget-pkgs --source microsoft/winget-pkgs
 - [ ] `twine check dist/*` passes
 - [ ] `ccburn --version` shows correct version
 
-### Verified After First Release (requires human pre-requisites)
+### Verified After First Release (Claude Code verifies via `gh` CLI)
 
-- [ ] CI workflow runs on PRs (after push to GitHub)
-- [ ] Release workflow publishes to PyPI (after tag push + PyPI trusted publishing setup)
-- [ ] Release workflow builds Windows executable (after tag push)
-- [ ] WinGet workflow submits package updates (after WINGET_TOKEN secret + initial WinGet approval)
-- [ ] Package installable via `pip install ccburn` (after PyPI publish)
-- [ ] Package installable via `winget install ccburn` (after WinGet approval)
+After pushing the tag and triggering workflows, Claude Code should verify success:
+
+```bash
+# 1. Wait for CI workflow to complete and verify success
+gh run list --workflow=ci.yml --limit=1
+gh run view <run-id>  # Check status is "completed" and conclusion is "success"
+
+# 2. Wait for Release workflow to complete
+gh run list --workflow=release.yml --limit=1
+gh run view <run-id>  # Verify all jobs succeeded
+
+# 3. Verify GitHub Release was created with assets
+gh release view v0.1.0  # Should show release with .whl, .tar.gz, and .exe
+
+# 4. Verify PyPI publication
+pip index versions ccburn  # Or: pip install ccburn==0.1.0 --dry-run
+
+# 5. Trigger and verify WinGet initial submission (first release only)
+gh workflow run winget-init.yml -f version=0.1.0
+gh run list --workflow=winget-init.yml --limit=1
+gh run view <run-id>  # Verify PR was submitted to microsoft/winget-pkgs
+```
+
+**Acceptance checklist:**
+- [ ] CI workflow passes (`gh run view` shows success)
+- [ ] Release workflow completes all jobs (build-packages, build-executable, create-release)
+- [ ] GitHub Release exists with all assets (`gh release view v0.1.0`)
+- [ ] Package available on PyPI (`pip index versions ccburn`)
+- [ ] WinGet PR submitted (check workflow logs for PR URL)
+
+**Note:** WinGet approval takes 24-48 hours. `winget install ccburn` verification happens after Microsoft approves the PR.
 
 ---
 
