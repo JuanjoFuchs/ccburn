@@ -9,12 +9,27 @@ on:
 
 jobs:
   submit:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - uses: vedantmgoyal9/winget-releaser@main
-        with:
-          identifier: JuanjoFuchs.ccburn
-          version: ${{ github.event.inputs.version }}
-          installers-regex: '\.exe$'
-          token: ${{ secrets.WINGET_TOKEN }}
-          release-tag: v${{ github.event.inputs.version }}
+      - name: Install komac
+        run: |
+          curl -sLO https://github.com/russellbanks/Komac/releases/latest/download/komac-2-linux-x64
+          chmod +x komac-2-linux-x64
+          sudo mv komac-2-linux-x64 /usr/local/bin/komac
+
+      - name: Get installer URL
+        id: asset
+        run: |
+          URL=$(gh api repos/${{ github.repository }}/releases/tags/v${{ github.event.inputs.version }} --jq '.assets[] | select(.name | endswith("windows-x64.exe")) | .browser_download_url')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Submit to WinGet
+        run: |
+          komac new JuanjoFuchs.ccburn \
+            --version ${{ github.event.inputs.version }} \
+            --urls "${{ steps.asset.outputs.url }}" \
+            --submit
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
