@@ -13,31 +13,23 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - name: Get version from release or input
+      - name: Get version
         id: version
         run: |
           if ("${{ github.event_name }}" -eq "release") {
             $version = "${{ github.event.release.tag_name }}".TrimStart('v')
+            $tag = "${{ github.event.release.tag_name }}"
           } else {
             $version = "${{ github.event.inputs.version }}"
+            $tag = "v${{ github.event.inputs.version }}"
           }
           echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
-      - name: Get release asset URL
-        id: asset
-        run: |
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ steps.version.outputs.version }}"
-          $asset = $release.assets | Where-Object { $_.name -like "*windows-x64.exe" }
-          echo "url=$($asset.browser_download_url)" >> $env:GITHUB_OUTPUT
-
-      - name: Download wingetcreate
-        run: |
-          Invoke-WebRequest -Uri "https://aka.ms/wingetcreate/latest" -OutFile wingetcreate.exe
-
-      - name: Submit to WinGet
-        run: |
-          .\wingetcreate.exe update JuanjoFuchs.ccburn `
-            --version ${{ steps.version.outputs.version }} `
-            --urls ${{ steps.asset.outputs.url }} `
-            --submit `
-            --token ${{ secrets.WINGET_TOKEN }}
+      - uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: JuanjoFuchs.ccburn
+          version: ${{ steps.version.outputs.version }}
+          installers-regex: '\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+          release-tag: ${{ steps.version.outputs.tag }}
