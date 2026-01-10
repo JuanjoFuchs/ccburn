@@ -91,17 +91,17 @@ class UsageClient:
                         "Authentication failed. Your token may be invalid.\n"
                         "Please restart Claude Code to refresh authentication.",
                         status_code=e.code,
-                    )
+                    ) from e
                 elif e.code == 403:
                     raise APIError(
                         "Access forbidden. You may not have permission to access usage data.",
                         status_code=e.code,
-                    )
+                    ) from e
                 elif e.code >= 500:
                     # Server error - retry
                     last_error = NetworkError(f"Server error: {e.code} {e.reason}")
                 else:
-                    raise APIError(f"API error: {e.code} {e.reason}", status_code=e.code)
+                    raise APIError(f"API error: {e.code} {e.reason}", status_code=e.code) from e
 
             except urllib.error.URLError as e:
                 self._last_error = str(e.reason)
@@ -109,7 +109,7 @@ class UsageClient:
 
             except json.JSONDecodeError as e:
                 self._last_error = f"Invalid JSON: {e}"
-                raise APIError(f"Invalid JSON response from API: {e}")
+                raise APIError(f"Invalid JSON response from API: {e}") from e
 
             except TimeoutError:
                 self._last_error = "Request timed out"

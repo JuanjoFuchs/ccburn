@@ -1,12 +1,12 @@
 """Plotext burnup chart with Rich integration."""
 
+from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from typing import Generator
 
 import plotext as plt
-from rich.console import Console, ConsoleOptions, RenderableType, Group
-from rich.jupyter import JupyterMixin
 from rich.ansi import AnsiDecoder
+from rich.console import Console, ConsoleOptions, Group, RenderableType
+from rich.jupyter import JupyterMixin
 
 try:
     from ..data.models import LimitData, UsageSnapshot
@@ -225,7 +225,7 @@ class BurnupChart(JupyterMixin):
         if now_hours_for_tick is not None:
             min_distance = display_hours / 10  # Minimum 10% of display width apart
             # Filter out ticks that are too close to "Now"
-            filtered = [(pos, label) for pos, label in zip(tick_positions, tick_labels)
+            filtered = [(pos, label) for pos, label in zip(tick_positions, tick_labels, strict=True)
                         if abs(now_hours_for_tick - pos) >= min_distance]
             tick_positions = [pos for pos, _ in filtered]
             tick_labels = [label for _, label in filtered]

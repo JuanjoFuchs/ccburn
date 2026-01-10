@@ -1,14 +1,13 @@
 """Tests for CLI commands."""
 
 from datetime import timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
-from ccburn.main import app
 from ccburn.cli import parse_duration
-
+from ccburn.main import app
 
 runner = CliRunner()
 
@@ -55,7 +54,7 @@ class TestCLI:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "ccburn" in result.stdout
-        assert "1.0.0" in result.stdout
+        assert "0.1.0" in result.stdout
 
     def test_help(self):
         result = runner.invoke(app, ["--help"])
@@ -91,7 +90,7 @@ class TestCLI:
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
 
-        result = runner.invoke(app, ["--json", "--once"])
+        _result = runner.invoke(app, ["--json", "--once"])
 
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs
@@ -105,7 +104,7 @@ class TestCLI:
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
 
-        result = runner.invoke(app, ["--compact"])
+        _result = runner.invoke(app, ["--compact"])
 
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs
@@ -118,7 +117,7 @@ class TestCLI:
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
 
-        result = runner.invoke(app, ["--interval", "60", "--once"])
+        _result = runner.invoke(app, ["--interval", "60", "--once"])
 
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs
@@ -131,7 +130,7 @@ class TestCLI:
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
 
-        result = runner.invoke(app, ["--since", "2h", "--once"])
+        _result = runner.invoke(app, ["--since", "2h", "--once"])
 
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs

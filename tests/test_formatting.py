@@ -1,15 +1,13 @@
 """Tests for formatting utilities."""
 
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import datetime, timezone
 
 from ccburn.utils.formatting import (
     format_duration,
     format_percentage,
     format_reset_time,
-    get_utilization_color,
     get_status_indicator,
+    get_utilization_color,
 )
 
 

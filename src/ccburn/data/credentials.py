@@ -67,9 +67,9 @@ def read_credentials() -> dict:
         with open(creds_path) as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        raise InvalidCredentialsError(f"Invalid JSON in credentials file: {e}")
-    except PermissionError:
-        raise CredentialsError(f"Permission denied reading {creds_path}")
+        raise InvalidCredentialsError(f"Invalid JSON in credentials file: {e}") from e
+    except PermissionError as e:
+        raise CredentialsError(f"Permission denied reading {creds_path}") from e
 
 
 def check_token_expired(credentials: dict) -> bool:

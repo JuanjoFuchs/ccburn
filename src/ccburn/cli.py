@@ -2,7 +2,6 @@
 
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -46,7 +45,7 @@ def parse_duration(value: str) -> timedelta:
     raise typer.BadParameter(f"Unknown time unit: {unit}")
 
 
-def duration_callback(value: Optional[str]) -> Optional[str]:
+def duration_callback(value: str | None) -> str | None:
     """Typer callback for parsing duration strings."""
     if value is None:
         return None
@@ -113,7 +112,7 @@ def run_app(
     json_output: bool = False,
     once: bool = False,
     compact: bool = False,
-    since: Optional[str] = None,
+    since: str | None = None,
     interval: int = 5,
     debug: bool = False,
 ) -> None:
@@ -141,7 +140,7 @@ def run_app(
             since_dt = datetime.now(timezone.utc) - since_delta
         except typer.BadParameter as e:
             typer.echo(f"Error: {e}", err=True)
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     app = CCBurnApp(
         limit_type=limit_type,
@@ -165,7 +164,7 @@ def create_session_command(app: typer.Typer) -> None:
         json_output: bool = JsonOption,
         once: bool = OnceOption,
         compact: bool = CompactOption,
-        since: Optional[str] = SinceOption,
+        since: str | None = SinceOption,
         interval: int = SessionIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -192,7 +191,7 @@ def create_weekly_command(app: typer.Typer) -> None:
         json_output: bool = JsonOption,
         once: bool = OnceOption,
         compact: bool = CompactOption,
-        since: Optional[str] = SinceOption,
+        since: str | None = SinceOption,
         interval: int = WeeklyIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -219,7 +218,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
         json_output: bool = JsonOption,
         once: bool = OnceOption,
         compact: bool = CompactOption,
-        since: Optional[str] = SinceOption,
+        since: str | None = SinceOption,
         interval: int = WeeklyIntervalOption,
         debug: bool = DebugOption,
     ) -> None:

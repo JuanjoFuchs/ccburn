@@ -1,12 +1,10 @@
 """Pytest fixtures for ccburn tests."""
 
-import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
-from ccburn.data.models import LimitType, LimitData, UsageSnapshot, BurnMetrics
+from ccburn.data.models import LimitData, LimitType, UsageSnapshot
 
 
 @pytest.fixture

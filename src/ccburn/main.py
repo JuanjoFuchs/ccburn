@@ -1,30 +1,29 @@
 """ccburn - Terminal-based Claude Code usage limit visualizer."""
 
-from typing import Optional
 
 import typer
 
 try:
     from .cli import (
-        register_commands,
+        CompactOption,
+        DebugOption,
         JsonOption,
         OnceOption,
-        CompactOption,
-        SinceOption,
         SessionIntervalOption,
-        DebugOption,
+        SinceOption,
+        register_commands,
         run_app,
     )
     from .data.models import LimitType
 except ImportError:
     from ccburn.cli import (
-        register_commands,
+        CompactOption,
+        DebugOption,
         JsonOption,
         OnceOption,
-        CompactOption,
-        SinceOption,
         SessionIntervalOption,
-        DebugOption,
+        SinceOption,
+        register_commands,
         run_app,
     )
     from ccburn.data.models import LimitType
@@ -54,7 +53,7 @@ def main(
     json_output: bool = JsonOption,
     once: bool = OnceOption,
     compact: bool = CompactOption,
-    since: Optional[str] = SinceOption,
+    since: str | None = SinceOption,
     interval: int = SessionIntervalOption,
     debug: bool = DebugOption,
 ) -> None:

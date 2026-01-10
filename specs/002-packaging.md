@@ -6,9 +6,11 @@ This specification defines the packaging and distribution strategy for ccburn, a
 
 ---
 
-## Pre-requisites (Human Required)
+## Pre-requisites (Human Required) ✅ VERIFIED COMPLETE
 
-These steps require manual intervention and must be completed BEFORE Claude Code implements this spec:
+These steps require manual intervention and must be completed BEFORE Claude Code implements this spec.
+
+> **Status**: All pre-requisites have been verified as complete (2026-01-10).
 
 ### 1. PyPI Account Setup
 
@@ -101,7 +103,7 @@ Create `LICENSE` with standard MIT license:
 ```
 MIT License
 
-Copyright (c) 2025 JuanjoFuchs
+Copyright (c) 2026 JuanjoFuchs
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -127,6 +129,13 @@ SOFTWARE.
 - [ ] Run `pytest` - all tests pass
 - [ ] Run `python -m build` - builds successfully
 - [ ] Run `twine check dist/*` - validates package
+
+### After Validation: Push Tag and Trigger Release
+After all validation passes, Claude Code should:
+- [ ] Commit all changes with appropriate gitmoji
+- [ ] Create and push tag `v0.1.0` to trigger release workflow
+- [ ] Verify CI and Release workflows succeed via `gh run list`
+- [ ] Trigger `winget-init.yml` workflow for initial WinGet submission
 
 ---
 

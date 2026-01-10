@@ -1,10 +1,10 @@
 """Tests for data models."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import pytest
 
-from ccburn.data.models import LimitType, LimitData, UsageSnapshot
+from ccburn.data.models import LimitType, UsageSnapshot
 
 
 class TestLimitType:

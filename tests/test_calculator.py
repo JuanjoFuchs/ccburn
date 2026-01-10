@@ -4,16 +4,16 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from ccburn.data.models import LimitData, LimitType, UsageSnapshot
 from ccburn.utils.calculator import (
     calculate_budget_pace,
+    calculate_burn_metrics,
     calculate_burn_rate,
-    estimate_time_to_empty,
     classify_burn_trend,
+    estimate_time_to_empty,
     get_recommendation,
     get_status,
-    calculate_burn_metrics,
 )
-from ccburn.data.models import LimitType, LimitData, UsageSnapshot
 
 
 class TestCalculateBudgetPace:

@@ -1,32 +1,30 @@
 """Main application class for ccburn."""
 
 import signal
-import time
 import threading
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from rich.console import Console
 from rich.live import Live
 
-from datetime import timedelta
-
 try:
-    from .data.models import LimitType, UsageSnapshot
     from .data.credentials import CredentialsNotFoundError, TokenExpiredError
-    from .data.usage_client import UsageClient, NetworkError, APIError
     from .data.history import HistoryDB
-    from .display.layout import BurnupLayout
+    from .data.models import LimitType, UsageSnapshot
+    from .data.usage_client import APIError, NetworkError, UsageClient
     from .display.gauges import create_compact_output, get_pace_emoji
-    from .utils.calculator import calculate_burn_metrics, calculate_budget_pace
+    from .display.layout import BurnupLayout
+    from .utils.calculator import calculate_budget_pace, calculate_burn_metrics
 except ImportError:
-    from ccburn.data.models import LimitType, UsageSnapshot
     from ccburn.data.credentials import CredentialsNotFoundError, TokenExpiredError
-    from ccburn.data.usage_client import UsageClient, NetworkError, APIError
     from ccburn.data.history import HistoryDB
-    from ccburn.display.layout import BurnupLayout
+    from ccburn.data.models import LimitType, UsageSnapshot
+    from ccburn.data.usage_client import APIError, NetworkError, UsageClient
     from ccburn.display.gauges import create_compact_output, get_pace_emoji
-    from ccburn.utils.calculator import calculate_burn_metrics, calculate_budget_pace
+    from ccburn.display.layout import BurnupLayout
+    from ccburn.utils.calculator import calculate_budget_pace, calculate_burn_metrics
 
 
 class CCBurnApp:

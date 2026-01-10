@@ -8,15 +8,15 @@ from rich.layout import Layout
 from rich.text import Text
 
 try:
-    from ..data.models import LimitData, LimitType, UsageSnapshot, BurnMetrics
+    from ..data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
     from ..utils.calculator import calculate_budget_pace, calculate_burn_metrics
-    from .gauges import create_header, create_gauge_section
     from .chart import BurnupChart
+    from .gauges import create_gauge_section, create_header
 except ImportError:
-    from ccburn.data.models import LimitData, LimitType, UsageSnapshot, BurnMetrics
-    from ccburn.utils.calculator import calculate_budget_pace, calculate_burn_metrics
-    from ccburn.display.gauges import create_header, create_gauge_section
+    from ccburn.data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
     from ccburn.display.chart import BurnupChart
+    from ccburn.display.gauges import create_gauge_section, create_header
+    from ccburn.utils.calculator import calculate_budget_pace, calculate_burn_metrics
 
 
 class BurnupLayout:

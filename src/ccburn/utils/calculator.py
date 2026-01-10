@@ -3,9 +3,9 @@
 from datetime import datetime, timedelta, timezone
 
 try:
-    from ..data.models import LimitData, LimitType, UsageSnapshot, BurnMetrics
+    from ..data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
 except ImportError:
-    from ccburn.data.models import LimitData, LimitType, UsageSnapshot, BurnMetrics
+    from ccburn.data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
 
 
 def calculate_budget_pace(resets_at: datetime, window_hours: float) -> float:

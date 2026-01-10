@@ -6,9 +6,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
-    from .models import LimitType, LimitData, UsageSnapshot
+    from .models import LimitData, LimitType, UsageSnapshot
 except ImportError:
-    from ccburn.data.models import LimitType, LimitData, UsageSnapshot
+    from ccburn.data.models import LimitData, LimitType, UsageSnapshot
 
 
 logger = logging.getLogger(__name__)

@@ -7,12 +7,12 @@ from rich.text import Text
 
 try:
     from ..data.models import LimitData, LimitType
-    from ..utils.formatting import format_reset_time, get_utilization_color
     from ..utils.calculator import calculate_budget_pace
+    from ..utils.formatting import format_reset_time, get_utilization_color
 except ImportError:
     from ccburn.data.models import LimitData, LimitType
-    from ccburn.utils.formatting import format_reset_time, get_utilization_color
     from ccburn.utils.calculator import calculate_budget_pace
+    from ccburn.utils.formatting import format_reset_time, get_utilization_color
 
 
 def get_pace_emoji(utilization: float, budget_pace: float) -> str:

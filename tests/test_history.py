@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from ccburn.data.history import HistoryDB
-from ccburn.data.models import LimitType, LimitData, UsageSnapshot
+from ccburn.data.models import LimitData, LimitType, UsageSnapshot
 
 
 class TestHistoryDB:
