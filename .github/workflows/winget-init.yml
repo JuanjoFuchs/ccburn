@@ -13,9 +13,11 @@ jobs:
     steps:
       - name: Install komac
         run: |
-          curl -sLO https://github.com/russellbanks/Komac/releases/latest/download/komac-2-linux-x64
-          chmod +x komac-2-linux-x64
-          sudo mv komac-2-linux-x64 /usr/local/bin/komac
+          KOMAC_VERSION=$(curl -s https://api.github.com/repos/russellbanks/Komac/releases/latest | jq -r '.tag_name')
+          curl -sLO "https://github.com/russellbanks/Komac/releases/download/${KOMAC_VERSION}/komac-${KOMAC_VERSION#v}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf komac-*.tar.gz
+          sudo mv komac /usr/local/bin/
+          komac --version
 
       - name: Get installer URL
         id: asset
