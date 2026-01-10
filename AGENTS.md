@@ -1,0 +1,3 @@
+- Read README.md for a high level understanding of the project and DEVELOPMENT.md for how to build, run, lint, debug and test
+- The python venv is already loaded, you can just call `python` directly
+- `ccburn` is a cli application installed on the venv in editable mode
