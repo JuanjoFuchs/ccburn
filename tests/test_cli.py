@@ -54,7 +54,7 @@ class TestCLI:
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "ccburn" in result.stdout
-        assert "0.1.0" in result.stdout
+        assert "0.1.1" in result.stdout
 
     def test_help(self):
         result = runner.invoke(app, ["--help"])
