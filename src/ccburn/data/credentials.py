@@ -92,6 +92,9 @@ def check_token_expired(credentials: dict) -> bool:
         if isinstance(expires_at, str):
             expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
         elif isinstance(expires_at, (int, float)):
+            # Handle milliseconds (JS timestamps) vs seconds (Unix timestamps)
+            if expires_at > 1e12:  # Likely milliseconds
+                expires_at = expires_at / 1000
             expiry = datetime.fromtimestamp(expires_at, tz=timezone.utc)
         else:
             return False
