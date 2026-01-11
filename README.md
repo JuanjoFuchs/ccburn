@@ -1,12 +1,20 @@
-# ccburn
+# 🔥 ccburn
 
 [![CI](https://img.shields.io/github/actions/workflow/status/JuanjoFuchs/ccburn/ci.yml?branch=main&label=CI)](https://github.com/JuanjoFuchs/ccburn/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/JuanjoFuchs/ccburn/release.yml?label=Release)](https://github.com/JuanjoFuchs/ccburn/actions/workflows/release.yml)
 [![PyPI](https://img.shields.io/pypi/v/ccburn)](https://pypi.org/project/ccburn/)
 [![Python](https://img.shields.io/pypi/pyversions/ccburn)](https://pypi.org/project/ccburn/)
 [![GitHub Release](https://img.shields.io/github/v/release/JuanjoFuchs/ccburn)](https://github.com/JuanjoFuchs/ccburn/releases)
-[![WinGet](https://img.shields.io/badge/WinGet-JuanjoFuchs.ccburn-blue)](https://winstall.app/apps/JuanjoFuchs.ccburn)
+[![WinGet](https://img.shields.io/badge/WinGet-pending-yellow)](https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+ccburn)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+<p align="center">
+  <img src="docs/cash1.png" alt="Burning tokens" width="140">
+</p>
+
+<p align="center">
+  <strong>Watch your tokens burn — before you get burned.</strong>
+</p>
 
 TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for status bars, JSON for automation.
 
@@ -15,7 +23,7 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 ## Features
 
 - **Real-time burn-up charts** — Visualize session and weekly usage with live-updating terminal graphics
-- **Pace indicators** — See if you're ahead, on pace, or behind your usage budget (🧊/🔥/🚨)
+- **Pace indicators** — 🧊 Cool. 🔥 On pace. 🚨 Too hot.
 - **Multiple output modes** — Full TUI, compact single-line for status bars, or JSON for scripting
 - **Automatic data persistence** — SQLite-backed history for trend analysis
 - **Dynamic window title** — Terminal tab shows current usage at a glance
@@ -23,7 +31,7 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 
 ## Installation
 
-### Windows (WinGet)
+### Windows (WinGet) — *pending approval*
 
 ```powershell
 winget install JuanjoFuchs.ccburn
