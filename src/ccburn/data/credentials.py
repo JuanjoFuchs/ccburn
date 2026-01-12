@@ -2,6 +2,8 @@
 
 import json
 import os
+import platform
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,32 +46,81 @@ def get_credentials_path() -> Path:
     return Path.home() / ".claude" / ".credentials.json"
 
 
+def _read_credentials_from_keychain() -> dict | None:
+    """Read credentials from macOS Keychain.
+
+    Returns:
+        Parsed credentials dictionary or None if not found/failed.
+    """
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout.strip())
+    except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
+        return None
+
+
+def _read_credentials_from_file() -> dict | None:
+    """Read credentials from file.
+
+    Returns:
+        Parsed credentials dictionary or None if not found/failed.
+    """
+    creds_path = get_credentials_path()
+
+    if not creds_path.exists():
+        return None
+
+    try:
+        with open(creds_path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, PermissionError):
+        return None
+
+
 def read_credentials() -> dict:
-    """Read the raw credentials file.
+    """Read credentials from the appropriate storage.
+
+    On macOS, tries Keychain first, then falls back to file.
+    On Linux/Windows, reads from file.
 
     Returns:
         Parsed credentials dictionary
 
     Raises:
-        CredentialsNotFoundError: If file doesn't exist
-        InvalidCredentialsError: If file is malformed
+        CredentialsNotFoundError: If credentials not found
+        InvalidCredentialsError: If credentials are malformed
     """
-    creds_path = get_credentials_path()
+    credentials = None
 
-    if not creds_path.exists():
-        raise CredentialsNotFoundError(
-            f"Credentials file not found at {creds_path}\n"
-            "Please ensure Claude Code is installed and you are logged in.\n"
-            "Run 'claude' to log in if needed."
-        )
+    # On macOS, try Keychain first
+    if platform.system() == "Darwin":
+        credentials = _read_credentials_from_keychain()
 
-    try:
-        with open(creds_path) as f:
-            return json.load(f)
-    except json.JSONDecodeError as e:
-        raise InvalidCredentialsError(f"Invalid JSON in credentials file: {e}") from e
-    except PermissionError as e:
-        raise CredentialsError(f"Permission denied reading {creds_path}") from e
+    # Fall back to file (or use file on non-macOS)
+    if credentials is None:
+        credentials = _read_credentials_from_file()
+
+    if credentials is None:
+        creds_path = get_credentials_path()
+        if platform.system() == "Darwin":
+            raise CredentialsNotFoundError(
+                "Credentials not found in macOS Keychain or file.\n"
+                "Please ensure Claude Code is installed and you are logged in.\n"
+                "Run 'claude' to log in if needed."
+            )
+        else:
+            raise CredentialsNotFoundError(
+                f"Credentials file not found at {creds_path}\n"
+                "Please ensure Claude Code is installed and you are logged in.\n"
+                "Run 'claude' to log in if needed."
+            )
+
+    return credentials
 
 
 def check_token_expired(credentials: dict) -> bool:
