@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          registry-url: "https://registry.npmjs.org"
+          # Note: Do NOT set registry-url here - it would set NODE_AUTH_TOKEN
+          # which prevents OIDC from working. npm uses OIDC automatically.
 
       - name: Wait for release assets
         run: |
