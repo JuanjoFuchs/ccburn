@@ -32,28 +32,30 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 
 ## Installation
 
-### Quick Start (npx)
+Run `claude` and login first to refresh credentials.
+
+### WinGet (*pending approval*)
+
+```powershell
+winget install JuanjoFuchs.ccburn
+```
+
+### npx
 
 ```bash
 npx ccburn
 ```
 
-### Cross-Platform (npm)
+### npm
 
 ```bash
 npm install -g ccburn
 ```
 
-### Cross-Platform (pip)
+### pip
 
 ```bash
 pip install ccburn
-```
-
-### Windows (WinGet) — *pending approval*
-
-```powershell
-winget install JuanjoFuchs.ccburn
 ```
 
 ### From Source
@@ -66,7 +68,10 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-1. **Ensure Claude Code is installed** — ccburn reads credentials from Claude Code's config
+1. **Run Claude Code first** to ensure credentials are fresh:
+   ```bash
+   claude
+   ```
 2. **Run ccburn:**
    ```bash
    ccburn              # Session limit (default)
