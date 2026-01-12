@@ -82,7 +82,8 @@ def format_reset_time(resets_at: datetime, now: datetime | None = None) -> str:
     # Convert to local time for display
     local_time = resets_at.astimezone()
     day_name = local_time.strftime("%a")  # "Tue"
-    time_str = local_time.strftime("%-I:%M %p")  # "4:00 PM"
+    # Use %I and strip leading zero (%-I is Unix-only, %#I is Windows-only)
+    time_str = local_time.strftime("%I:%M %p").lstrip("0")  # "4:00 PM"
     return f"Resets {day_name} {time_str}"
 
 
