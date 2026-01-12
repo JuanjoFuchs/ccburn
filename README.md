@@ -2,11 +2,12 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/JuanjoFuchs/ccburn/ci.yml?branch=main&label=CI)](https://github.com/JuanjoFuchs/ccburn/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/actions/workflow/status/JuanjoFuchs/ccburn/release.yml?label=Release)](https://github.com/JuanjoFuchs/ccburn/actions/workflows/release.yml)
+[![npm](https://img.shields.io/npm/v/ccburn)](https://www.npmjs.com/package/ccburn)
 [![PyPI](https://img.shields.io/pypi/v/ccburn)](https://pypi.org/project/ccburn/)
 [![Python](https://img.shields.io/pypi/pyversions/ccburn)](https://pypi.org/project/ccburn/)
 [![GitHub Release](https://img.shields.io/github/v/release/JuanjoFuchs/ccburn)](https://github.com/JuanjoFuchs/ccburn/releases)
 [![WinGet](https://img.shields.io/badge/WinGet-pending-yellow)](https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+ccburn)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/github/license/JuanjoFuchs/ccburn)](LICENSE)
 
 <p align="center">
   <img src="docs/cash1.png" alt="Burning tokens" width="140">
@@ -31,16 +32,28 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 
 ## Installation
 
-### Windows (WinGet) — *pending approval*
+### Quick Start (npx)
 
-```powershell
-winget install JuanjoFuchs.ccburn
+```bash
+npx ccburn
+```
+
+### Cross-Platform (npm)
+
+```bash
+npm install -g ccburn
 ```
 
 ### Cross-Platform (pip)
 
 ```bash
 pip install ccburn
+```
+
+### Windows (WinGet) — *pending approval*
+
+```powershell
+winget install JuanjoFuchs.ccburn
 ```
 
 ### From Source
