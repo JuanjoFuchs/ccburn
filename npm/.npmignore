@@ -1,0 +1,23 @@
+# Source files
+*.ts
+tsconfig.json
+
+# Development
+.github/
+tests/
+specs/
+docs/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Environment
+.env*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,50 @@
+{
+  "name": "ccburn",
+  "version": "0.1.3",
+  "description": "Terminal-based Claude Code usage limit visualizer with real-time burn-up charts",
+  "author": "JuanjoFuchs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JuanjoFuchs/ccburn.git"
+  },
+  "homepage": "https://github.com/JuanjoFuchs/ccburn#readme",
+  "bugs": {
+    "url": "https://github.com/JuanjoFuchs/ccburn/issues"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "usage",
+    "monitoring",
+    "tui",
+    "cli",
+    "terminal",
+    "burn-up",
+    "chart"
+  ],
+  "bin": {
+    "ccburn": "./bin/ccburn.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
