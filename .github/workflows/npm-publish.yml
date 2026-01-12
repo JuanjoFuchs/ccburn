@@ -44,7 +44,7 @@ jobs:
       - name: Update package.json version
         working-directory: npm
         run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
         working-directory: npm
