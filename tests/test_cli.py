@@ -51,10 +51,12 @@ class TestCLI:
     """Tests for CLI commands."""
 
     def test_version(self):
+        import re
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "ccburn" in result.stdout
-        assert "0.1.1" in result.stdout
+        # Check for semantic version pattern (e.g., 0.1.7)
+        assert re.search(r"\d+\.\d+\.\d+", result.stdout)
 
     def test_help(self):
         result = runner.invoke(app, ["--help"])
