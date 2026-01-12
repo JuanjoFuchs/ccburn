@@ -53,10 +53,29 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  # Job 2: Build Windows executable
-  build-executable:
-    runs-on: windows-latest
+  # Job 2: Build platform-specific executables
+  build-executables:
     needs: build-packages
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            ext: .exe
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            ext: ""
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            ext: ""
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            ext: ""
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,31 +84,35 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
+        run: pip install -e ".[dev]"
 
       - name: Build executable
-        run: |
-          pyinstaller --onefile --name ccburn --console src/ccburn/main.py
+        run: pyinstaller --onefile --name ccburn --console src/ccburn/main.py
 
-      - name: Rename executable with version
+      - name: Rename executable
+        shell: bash
         run: |
-          mv dist/ccburn.exe dist/ccburn-${{ needs.build-packages.outputs.version }}-windows-x64.exe
+          mv dist/ccburn${{ matrix.ext }} dist/ccburn-${{ needs.build-packages.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
+
+      - name: Make executable (Unix)
+        if: matrix.platform != 'windows'
+        run: chmod +x dist/ccburn-*
 
       - name: Test executable
+        shell: bash
         run: |
-          dist/ccburn-${{ needs.build-packages.outputs.version }}-windows-x64.exe --version
+          ./dist/ccburn-${{ needs.build-packages.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }} --version
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-executable
-          path: dist/*.exe
+          name: executable-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/ccburn-*
 
   # Job 3: Create GitHub Release with all artifacts
   create-release:
     runs-on: ubuntu-latest
-    needs: [build-packages, build-executable]
+    needs: [build-packages, build-executables]
     permissions:
       contents: write
     steps:
@@ -98,10 +121,14 @@ jobs:
         with:
           path: artifacts
 
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.whl" -o -name "*.tar.gz" -o -name "ccburn-*" \) -exec cp {} release-files/ \;
+          ls -la release-files/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            artifacts/python-packages/*
-            artifacts/windows-executable/*
+          files: release-files/*
           generate_release_notes: true
