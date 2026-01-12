@@ -14,15 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write  # Required for npm provenance/trusted publishing
+      id-token: write  # Required for npm OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          # Note: Do NOT set registry-url here - it would set NODE_AUTH_TOKEN
-          # which prevents OIDC from working. npm uses OIDC automatically.
+          node-version: "24"  # Node 24 ships with npm 11.x which supports OIDC
+          registry-url: "https://registry.npmjs.org"  # Required for OIDC
+          # IMPORTANT: Do NOT set NODE_AUTH_TOKEN - OIDC handles auth automatically
+
+      - name: Verify npm version
+        run: |
+          echo "npm version: $(npm --version)"
+          # OIDC requires npm >= 11.5.1
 
       - name: Wait for release assets
         run: |
@@ -49,6 +54,10 @@ jobs:
 
       - name: Publish to npm
         working-directory: npm
-        run: npm publish --access public
-        # No NODE_AUTH_TOKEN needed - uses OIDC trusted publishing
-        # Provenance is automatic with trusted publishing
+        run: npm publish --access public --provenance
+        # OIDC authentication happens automatically when:
+        # 1. id-token: write permission is set
+        # 2. registry-url is configured in setup-node
+        # 3. npm version >= 11.5.1
+        # 4. Trusted publisher is configured on npmjs.com
+        # 5. NODE_AUTH_TOKEN is NOT set
