@@ -110,9 +110,9 @@ def create_gauge_section(
     utilization_percent = limit_data.utilization * 100
     pace_percent = budget_pace * 100
 
-    # Usage bar - color by threshold
+    # Usage bar - color by threshold AND burn rate
     # complete_style = filled portion (bright), style = unfilled portion (dim)
-    usage_color = get_utilization_color(limit_data.utilization)
+    usage_color = get_utilization_color(limit_data.utilization, budget_pace)
     usage_bar = ProgressBar(
         total=100,
         completed=utilization_percent,

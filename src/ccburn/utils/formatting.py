@@ -87,23 +87,44 @@ def format_reset_time(resets_at: datetime, now: datetime | None = None) -> str:
     return f"Resets {day_name} {time_str}"
 
 
-def get_utilization_color(utilization: float) -> str:
-    """Get color based on utilization percentage.
+def get_utilization_color(utilization: float, budget_pace: float = 0.0) -> str:
+    """Get color based on utilization and burn rate.
 
     Args:
-        utilization: Float between 0 and 1
+        utilization: Current usage (0-1)
+        budget_pace: How much of window has elapsed (0-1)
 
     Returns:
-        Color name: "green", "yellow", "orange", or "red"
+        Color name: "green", "yellow", "bright_red", or "red"
     """
-    if utilization < 0.5:
-        return "green"
-    elif utilization < 0.75:
-        return "yellow"
-    elif utilization < 0.9:
-        return "bright_red"  # Rich uses "bright_red" for orange-like
-    else:
+    # Critical: always red at very high utilization
+    if utilization >= 0.9:
         return "red"
+
+    # Calculate burn ratio if we have meaningful data
+    burn_ratio = 1.0
+    if budget_pace >= 0.05 and utilization >= 0.01:
+        burn_ratio = utilization / budget_pace
+
+    # High utilization: at least orange, red if also burning fast
+    if utilization >= 0.75:
+        return "red" if burn_ratio > 1.5 else "bright_red"
+
+    # Moderate utilization: color based on burn rate
+    if utilization >= 0.5:
+        if burn_ratio > 2.0:
+            return "red"
+        if burn_ratio > 1.5:
+            return "bright_red"
+        return "yellow"
+
+    # Low utilization: escalate only if burning very fast
+    if burn_ratio > 3.0:
+        return "bright_red"  # Will hit limit at ~33% of window
+    if burn_ratio > 2.0:
+        return "yellow"  # Will hit limit at ~50% of window
+
+    return "green"
 
 
 def get_status_indicator(utilization: float, budget_pace: float) -> str:

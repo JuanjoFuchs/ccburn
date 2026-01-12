@@ -10,8 +10,10 @@ from rich.jupyter import JupyterMixin
 
 try:
     from ..data.models import LimitData, UsageSnapshot
+    from ..utils.formatting import get_utilization_color
 except ImportError:
     from ccburn.data.models import LimitData, UsageSnapshot
+    from ccburn.utils.formatting import get_utilization_color
 
 
 class BurnupChart(JupyterMixin):
@@ -143,8 +145,11 @@ class BurnupChart(JupyterMixin):
                     values.append(util_pct)
 
             if times:
-                # Determine line color based on current utilization
-                color = self._get_plotext_color(self.limit_data.utilization)
+                # Calculate budget pace for color determination
+                elapsed_hours = (now - original_window_start).total_seconds() / 3600
+                budget_pace = min(elapsed_hours / original_window_hours, 1.0)
+                # Determine line color based on utilization AND burn rate
+                color = self._get_plotext_color(self.limit_data.utilization, budget_pace)
                 # Use fillx=True for area chart effect (fills down to x-axis)
                 plt.plot(
                     times,
@@ -258,23 +263,27 @@ class BurnupChart(JupyterMixin):
 
         return plt.build()
 
-    def _get_plotext_color(self, utilization: float) -> tuple[int, int, int]:
-        """Get plotext RGB color based on utilization.
+    def _get_plotext_color(
+        self, utilization: float, budget_pace: float = 0.0
+    ) -> tuple[int, int, int]:
+        """Get plotext RGB color based on utilization and burn rate.
 
         Args:
             utilization: Current utilization (0-1)
+            budget_pace: How much of window has elapsed (0-1)
 
         Returns:
             RGB tuple for plotext - bright vivid colors matching Rich progress bars
         """
-        if utilization < 0.5:
-            return (0, 255, 0)  # Bright green
-        elif utilization < 0.75:
-            return (255, 255, 0)  # Bright yellow
-        elif utilization < 0.9:
-            return (255, 165, 0)  # Orange
-        else:
-            return (255, 0, 0)  # Bright red
+        # Reuse shared color logic, map Rich color names to RGB
+        color_name = get_utilization_color(utilization, budget_pace)
+        color_map = {
+            "green": (0, 255, 0),
+            "yellow": (255, 255, 0),
+            "bright_red": (255, 165, 0),  # Orange
+            "red": (255, 0, 0),
+        }
+        return color_map.get(color_name, (255, 255, 0))
 
 
 def create_simple_chart(
