@@ -132,3 +132,31 @@ jobs:
         with:
           files: release-files/*
           generate_release_notes: true
+
+  # Job 4: Publish to npm
+  publish-npm:
+    runs-on: ubuntu-latest
+    needs: [build-packages, create-release]
+    permissions:
+      contents: read
+      id-token: write  # Required for npm OIDC trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"  # Node 24 ships with npm 11.x which supports OIDC
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify npm version
+        run: |
+          echo "npm version: $(npm --version)"
+
+      - name: Update package.json version
+        working-directory: npm
+        run: |
+          npm version ${{ needs.build-packages.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Publish to npm
+        working-directory: npm
+        run: npm publish --access public --provenance
