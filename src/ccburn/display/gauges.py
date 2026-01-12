@@ -120,15 +120,9 @@ def create_gauge_section(
         complete_style=Style(color=usage_color),  # Bright color for filled
     )
 
-    # Usage label with emoji based on status
-    usage_emoji = "📊"
-    if limit_data.utilization >= 0.9:
-        usage_emoji = "🚨"
-    elif limit_data.utilization >= 0.75:
-        usage_emoji = "⚠️"
-
+    # Usage label - keep emoji consistent (⚠️ has inconsistent width across terminals)
     usage_label = Text()
-    usage_label.append(f"{usage_emoji} ", style="")
+    usage_label.append("📊 ", style="")
     usage_label.append("Usage", style=f"bold {usage_color}")
 
     table.add_row(
