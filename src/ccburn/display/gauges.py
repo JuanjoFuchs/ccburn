@@ -1,5 +1,7 @@
 """Progress bar gauges for ccburn TUI."""
 
+import sys
+
 from rich.progress import ProgressBar
 from rich.style import Style
 from rich.table import Table
@@ -15,26 +17,48 @@ except ImportError:
     from ccburn.utils.formatting import format_reset_time, get_utilization_color
 
 
-def get_pace_emoji(utilization: float, budget_pace: float) -> str:
+def _supports_emoji() -> bool:
+    """Detect if the console supports emoji characters.
+
+    Returns:
+        True if emoji are likely supported, False otherwise.
+    """
+    # Check if stdout encoding supports emoji
+    try:
+        encoding = getattr(sys.stdout, "encoding", None) or ""
+        if encoding.lower() in ("utf-8", "utf8"):
+            return True
+        # Try to encode an emoji to test
+        "🔥".encode(encoding)
+        return True
+    except (UnicodeEncodeError, LookupError):
+        return False
+
+
+def get_pace_emoji(utilization: float, budget_pace: float, ascii_fallback: bool = False) -> str:
     """Get emoji indicator based on utilization vs budget pace.
 
     Args:
         utilization: Current utilization (0-1)
         budget_pace: Expected budget pace (0-1)
+        ascii_fallback: If True, use ASCII characters instead of emoji
 
     Returns:
         Emoji: 🧊 (behind), 🔥 (on pace), 🚨 (ahead)
+        ASCII: [_] (behind), [=] (on pace), [!] (ahead)
     """
+    use_ascii = ascii_fallback or not _supports_emoji()
+
     if budget_pace == 0:
-        return "🔥"
+        return "[=]" if use_ascii else "🔥"
 
     ratio = utilization / budget_pace
     if ratio < 0.85:
-        return "🧊"  # Behind pace - ice cold, under budget
+        return "[_]" if use_ascii else "🧊"  # Behind pace - ice cold, under budget
     elif ratio > 1.15:
-        return "🚨"  # Ahead of pace - alarm!
+        return "[!]" if use_ascii else "🚨"  # Ahead of pace - alarm!
     else:
-        return "🔥"  # On pace - normal burn
+        return "[=]" if use_ascii else "🔥"  # On pace - normal burn
 
 
 def create_header(limit_type: LimitType, limit_data: LimitData | None) -> Table:
