@@ -5,31 +5,110 @@ on:
     types: [released]
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (e.g., 0.1.0)'
+      release_tag:
+        description: 'Release tag (e.g., v0.2.1)'
         required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
-  publish:
+  publish-to-winget:
     runs-on: windows-latest
-    steps:
-      - name: Get version
-        id: version
-        run: |
-          if ("${{ github.event_name }}" -eq "release") {
-            $version = "${{ github.event.release.tag_name }}".TrimStart('v')
-            $tag = "${{ github.event.release.tag_name }}"
-          } else {
-            $version = "${{ github.event.inputs.version }}"
-            $tag = "v${{ github.event.inputs.version }}"
-          }
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
-      - uses: vedantmgoyal9/winget-releaser@main
-        with:
-          identifier: JuanjoFuchs.ccburn
-          version: ${{ steps.version.outputs.version }}
-          installers-regex: '\.exe$'
-          token: ${{ secrets.WINGET_TOKEN }}
-          release-tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Get release information
+        id: release
+        shell: pwsh
+        run: |
+          # Determine the tag: use input if manual, otherwise from event
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ inputs.release_tag }}"
+            Write-Output "Manual trigger with tag: $tag"
+
+            # Fetch release data from GitHub API
+            $releaseUrl = "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag"
+            Write-Output "Fetching release data from: $releaseUrl"
+
+            try {
+              $release = Invoke-RestMethod -Uri $releaseUrl -Headers @{
+                "Accept" = "application/vnd.github+json"
+                "X-GitHub-Api-Version" = "2022-11-28"
+              }
+              $assets = $release.assets | ConvertTo-Json -Compress
+            } catch {
+              Write-Error "Failed to fetch release data: $_"
+              exit 1
+            }
+          } else {
+            $tag = "${{ github.event.release.tag_name }}"
+            $assets = '${{ toJson(github.event.release.assets) }}'
+            Write-Output "Automatic trigger from release: $tag"
+          }
+
+          # Output for next steps
+          Write-Output "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Output "assets=$assets" >> $env:GITHUB_OUTPUT
+          Write-Output "Tag: $tag"
+
+      - name: Extract version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          # Remove 'v' prefix if present (v0.2.1 -> 0.2.1)
+          $version = $tag -replace '^v', ''
+          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Extracted version: $version"
+
+      - name: Extract installer URL
+        id: installer
+        shell: pwsh
+        run: |
+          $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
+          # Find the Windows x64 executable
+          $exe = $assets | Where-Object { $_.name -match 'ccburn-.*-windows-x64\.exe$' }
+          if ($null -eq $exe) {
+            Write-Error "Windows x64 executable not found in release assets"
+            exit 1
+          }
+          $url = $exe.browser_download_url
+          Write-Output "installer_url=$url" >> $env:GITHUB_OUTPUT
+          Write-Output "Found installer: $($exe.name)"
+          Write-Output "URL: $url"
+
+      - name: Download WinGet Create
+        shell: pwsh
+        run: |
+          Write-Output "Downloading wingetcreate.exe..."
+          Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          Write-Output "wingetcreate.exe downloaded successfully"
+
+      - name: Update WinGet package
+        shell: pwsh
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $packageId = "JuanjoFuchs.ccburn"
+          $version = "${{ steps.version.outputs.version }}"
+          $url = "${{ steps.installer.outputs.installer_url }}"
+
+          Write-Output "Updating WinGet package..."
+          Write-Output "Package ID: $packageId"
+          Write-Output "Version: $version"
+          Write-Output "Installer URL: $url"
+
+          # Update the package and submit PR to winget-pkgs
+          .\wingetcreate.exe update $packageId `
+            --version $version `
+            --urls $url `
+            --token $env:WINGET_TOKEN `
+            --submit
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "wingetcreate failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+          Write-Output "WinGet package updated successfully!"
