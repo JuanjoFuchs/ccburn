@@ -1,5 +1,6 @@
 """Main application class for ccburn."""
 
+import os
 import signal
 import threading
 import time
@@ -59,7 +60,12 @@ class CCBurnApp:
         self.compact = compact
         self.debug = debug
 
-        self.console = Console()
+        # Disable legacy_windows mode for modern terminals to prevent Unicode issues
+        # Rich may incorrectly detect legacy mode even in Windows Terminal
+        use_legacy = None  # Auto-detect by default
+        if os.environ.get("WT_SESSION"):  # Windows Terminal
+            use_legacy = False
+        self.console = Console(legacy_windows=use_legacy)
         self.client = UsageClient()
         self.history: HistoryDB | None = None
         self.layout = BurnupLayout(self.console)

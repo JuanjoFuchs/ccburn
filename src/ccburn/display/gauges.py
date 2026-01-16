@@ -1,5 +1,6 @@
 """Progress bar gauges for ccburn TUI."""
 
+import os
 import sys
 
 from rich.progress import ProgressBar
@@ -17,22 +18,50 @@ except ImportError:
     from ccburn.utils.formatting import format_reset_time, get_utilization_color
 
 
+_emoji_support_cache: bool | None = None
+
+
 def _supports_emoji() -> bool:
     """Detect if the console supports emoji characters.
+
+    Result is cached to ensure consistent behavior throughout the session,
+    as Rich's Live mode may affect stdout properties during rendering.
 
     Returns:
         True if emoji are likely supported, False otherwise.
     """
-    # Check if stdout encoding supports emoji
+    global _emoji_support_cache
+    if _emoji_support_cache is not None:
+        return _emoji_support_cache
+
+    # First, check if stdout encoding can handle emoji - this prevents crashes
+    # even in modern terminals if Python's encoding is misconfigured
     try:
         encoding = getattr(sys.stdout, "encoding", None) or ""
-        if encoding.lower() in ("utf-8", "utf8"):
-            return True
-        # Try to encode an emoji to test
-        "🔥".encode(encoding)
-        return True
+        if encoding.lower() not in ("utf-8", "utf8"):
+            # Try to encode an emoji to test
+            "🔥".encode(encoding)
     except (UnicodeEncodeError, LookupError):
+        # Encoding cannot handle emoji - use ASCII to prevent crashes
+        _emoji_support_cache = False
         return False
+
+    # Encoding is OK, now check for modern terminal environments
+    # that are known to render emoji correctly
+    if os.environ.get("WT_SESSION"):  # Windows Terminal
+        _emoji_support_cache = True
+        return True
+    if os.environ.get("TERM_PROGRAM"):  # macOS Terminal, iTerm2, VS Code, etc.
+        _emoji_support_cache = True
+        return True
+    if os.environ.get("COLORTERM") == "truecolor":  # Modern terminals with truecolor
+        _emoji_support_cache = True
+        return True
+
+    # Fall back to utf-8 encoding check
+    encoding = getattr(sys.stdout, "encoding", None) or ""
+    _emoji_support_cache = encoding.lower() in ("utf-8", "utf8")
+    return _emoji_support_cache
 
 
 def get_pace_emoji(utilization: float, budget_pace: float, ascii_fallback: bool = False) -> str:
