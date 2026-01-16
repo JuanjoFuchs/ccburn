@@ -137,6 +137,8 @@ jobs:
   trigger-winget:
     runs-on: ubuntu-latest
     needs: [build-packages, create-release]
+    permissions:
+      actions: write  # Required to dispatch winget-publish workflow
     steps:
       - name: Trigger WinGet publish workflow
         uses: actions/github-script@v7
