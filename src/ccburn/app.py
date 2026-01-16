@@ -427,7 +427,7 @@ class CCBurnApp:
                     "status": metrics.status,
                 }
 
-        # Add burn rate for selected limit
+        # Add burn rate and projection for selected limit
         limit_data = self.last_snapshot.get_limit(self.limit_type)
         if limit_data:
             metrics = calculate_burn_metrics(limit_data, self.snapshots)
@@ -438,6 +438,39 @@ class CCBurnApp:
                 "estimated_minutes_to_100": metrics.estimated_minutes_to_100,
             }
             output["recommendation"] = metrics.recommendation
+
+            # Add projection data
+            if metrics.percent_per_hour > 0:
+                current_pct = limit_data.utilization * 100
+                remaining_pct = 100.0 - current_pct
+                hours_to_100 = remaining_pct / metrics.percent_per_hour
+
+                now = datetime.now(timezone.utc)
+                remaining_window_hours = (limit_data.resets_at - now).total_seconds() / 3600
+
+                if hours_to_100 <= remaining_window_hours:
+                    # Will hit 100% before window ends
+                    projected_end_pct = 100.0
+                    hits_100 = True
+                    status = "warning"
+                else:
+                    # Won't hit 100%
+                    projected_end_pct = current_pct + (metrics.percent_per_hour * remaining_window_hours)
+                    hits_100 = False
+                    status = "safe"
+
+                output["projection"] = {
+                    "available": True,
+                    "projected_end_pct": round(min(projected_end_pct, 100.0), 1),
+                    "hits_100": hits_100,
+                    "hours_to_100": round(hours_to_100, 1) if hits_100 else None,
+                    "status": status,
+                }
+            else:
+                output["projection"] = {
+                    "available": False,
+                    "reason": "insufficient_data" if metrics.percent_per_hour == 0 else "usage_decreasing",
+                }
 
         return output
 

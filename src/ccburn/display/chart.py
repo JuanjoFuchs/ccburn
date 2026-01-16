@@ -9,10 +9,10 @@ from rich.console import Console, ConsoleOptions, Group, RenderableType
 from rich.jupyter import JupyterMixin
 
 try:
-    from ..data.models import LimitData, UsageSnapshot
+    from ..data.models import BurnMetrics, LimitData, UsageSnapshot
     from ..utils.formatting import get_utilization_color
 except ImportError:
-    from ccburn.data.models import LimitData, UsageSnapshot
+    from ccburn.data.models import BurnMetrics, LimitData, UsageSnapshot
     from ccburn.utils.formatting import get_utilization_color
 
 
@@ -25,6 +25,7 @@ class BurnupChart(JupyterMixin):
         snapshots: list[UsageSnapshot],
         since_duration: timedelta | None = None,
         explicit_height: int | None = None,
+        burn_metrics: BurnMetrics | None = None,
     ):
         """Initialize the burnup chart.
 
@@ -33,11 +34,13 @@ class BurnupChart(JupyterMixin):
             snapshots: Historical snapshots to plot
             since_duration: Duration for zoom view (sliding window, e.g., last 1h)
             explicit_height: Override chart height
+            burn_metrics: Burn rate metrics for projection line
         """
         self.limit_data = limit_data
         self.snapshots = snapshots
         self.since_duration = since_duration
         self.explicit_height = explicit_height
+        self.burn_metrics = burn_metrics
         self.decoder = AnsiDecoder()
 
     def __rich_console__(
@@ -162,6 +165,41 @@ class BurnupChart(JupyterMixin):
                     label="Usage",
                 )
 
+        # Plot projection line if we have positive burn rate (not on zoomed views)
+        hits_100_hours = None  # Track when projection hits 100% for vertical marker
+        if self.burn_metrics and self.burn_metrics.percent_per_hour > 0 and not self.since_duration:
+            current_pct = self.limit_data.utilization * 100
+            now_hours = to_hours(now)
+
+            # Only draw projection if not already at or above 100%
+            if current_pct < 100.0:
+                # Calculate time to hit 100%
+                remaining_pct = 100.0 - current_pct
+                hours_to_100 = remaining_pct / self.burn_metrics.percent_per_hour
+
+                # End point: either 100% or window end, whichever comes first
+                remaining_window_hours = (display_end - now).total_seconds() / 3600
+
+                if hours_to_100 <= remaining_window_hours:
+                    # Will hit 100% before window ends
+                    end_hours = now_hours + hours_to_100
+                    end_pct = 100.0
+                    proj_color = (255, 100, 0)  # Orange - warning
+                    hits_100_hours = end_hours  # Mark for vertical line
+                else:
+                    # Won't hit 100%, project to window end
+                    end_hours = now_hours + remaining_window_hours
+                    end_pct = current_pct + (self.burn_metrics.percent_per_hour * remaining_window_hours)
+                    proj_color = (100, 200, 100)  # Green - safe
+
+                plt.plot(
+                    [now_hours, end_hours],
+                    [current_pct, min(end_pct, 100.0)],
+                    color=proj_color,
+                    marker="braille",
+                    label="Projection",
+                )
+
         # Configure axes
         plt.xlim(0, display_hours)
 
@@ -197,6 +235,15 @@ class BurnupChart(JupyterMixin):
                 dot_x = [now_hours] * num_dots
                 plt.plot(dot_x, dot_y, color=(0, 120, 255), marker="braille", label="Now")
                 now_hours_for_tick = now_hours
+
+        # Add "hits 100%" vertical line when projection exceeds budget
+        hits_100_hours_for_tick = None
+        if hits_100_hours is not None and 0 < hits_100_hours < display_hours:
+            num_dots = 20
+            dot_y = [y_min + i * (y_max - y_min) / (num_dots - 1) for i in range(num_dots)]
+            dot_x = [hits_100_hours] * num_dots
+            plt.plot(dot_x, dot_y, color=(255, 100, 0), marker="braille", label="Depleted")
+            hits_100_hours_for_tick = hits_100_hours
 
         # Enable right Y axis with same range
         plt.plot([display_hours], [y_max], marker=" ", yside="right")  # Hidden point to enable right axis
@@ -248,6 +295,28 @@ class BurnupChart(JupyterMixin):
                 tick_labels.append(local_now.strftime("%a %Hh"))
             else:
                 tick_labels.append(local_now.strftime("%H:%M"))
+
+        # Add "100%" tick if showing the hits-100 line
+        if hits_100_hours_for_tick is not None:
+            min_distance = display_hours / 10  # Minimum 10% of display width apart
+            # Filter out ticks that are too close to "100%"
+            filtered = [(pos, label) for pos, label in zip(tick_positions, tick_labels, strict=True)
+                        if abs(hits_100_hours_for_tick - pos) >= min_distance]
+            tick_positions = [pos for pos, _ in filtered]
+            tick_labels = [label for _, label in filtered]
+            # Add the "100%" tick with timestamp
+            hits_100_time = display_start + timedelta(hours=hits_100_hours_for_tick)
+            local_hits_100 = hits_100_time.astimezone()
+            # Round to nearest minute
+            if local_hits_100.second >= 30:
+                local_hits_100 = local_hits_100.replace(second=0, microsecond=0) + timedelta(minutes=1)
+            else:
+                local_hits_100 = local_hits_100.replace(second=0, microsecond=0)
+            tick_positions.append(hits_100_hours_for_tick)
+            if use_date_format:
+                tick_labels.append(local_hits_100.strftime("%a %Hh"))
+            else:
+                tick_labels.append(local_hits_100.strftime("%H:%M"))
 
         plt.xticks(tick_positions, tick_labels)
 

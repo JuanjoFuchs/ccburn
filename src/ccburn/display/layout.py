@@ -157,6 +157,7 @@ class BurnupLayout:
             self._last_snapshots,
             since_duration=since_duration,
             explicit_height=chart_height,
+            burn_metrics=self._last_metrics,
         )
         chart_layout.update(chart)
 

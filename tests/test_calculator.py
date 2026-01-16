@@ -63,12 +63,15 @@ class TestCalculateBurnRate:
 
     def test_no_snapshots(self):
         """Burn rate should be 0 with no snapshots."""
-        rate = calculate_burn_rate([], LimitType.SESSION)
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=5)
+        rate = calculate_burn_rate([], LimitType.SESSION, window_start, window_hours=5)
         assert rate == 0.0
 
     def test_one_snapshot(self):
         """Burn rate should be 0 with only one snapshot."""
         now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=3)
         snapshot = UsageSnapshot(
             timestamp=now,
             session=LimitData(
@@ -80,18 +83,25 @@ class TestCalculateBurnRate:
             weekly_sonnet=None,
             weekly_opus=None,
         )
-        rate = calculate_burn_rate([snapshot], LimitType.SESSION)
+        rate = calculate_burn_rate([snapshot], LimitType.SESSION, window_start, window_hours=5)
         assert rate == 0.0
 
     def test_increasing_usage(self, sample_snapshots):
         """Burn rate should be positive when usage is increasing."""
-        rate = calculate_burn_rate(sample_snapshots, LimitType.SESSION, window_minutes=10)
+        # sample_snapshots are from 2026-01-08 14:00:00 to 14:04:30 (4.5 min span)
+        # Window starts before the first snapshot
+        # Use 30-minute window so 4.5 min span > 10% minimum (3 min)
+        window_start = datetime(2026, 1, 8, 13, 55, 0, tzinfo=timezone.utc)
+        rate = calculate_burn_rate(
+            sample_snapshots, LimitType.SESSION, window_start, window_hours=0.5
+        )
         # With 10% increase over 4.5 minutes, rate should be ~133%/hour
         assert rate > 0
 
     def test_constant_usage(self):
         """Burn rate should be 0 when usage is constant."""
         now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=1)
         snapshots = []
         for i in range(5):
             ts = now - timedelta(minutes=i)
@@ -109,7 +119,7 @@ class TestCalculateBurnRate:
             snapshots.append(snapshot)
 
         snapshots.sort(key=lambda s: s.timestamp)
-        rate = calculate_burn_rate(snapshots, LimitType.SESSION, window_minutes=10)
+        rate = calculate_burn_rate(snapshots, LimitType.SESSION, window_start, window_hours=5)
         assert rate == pytest.approx(0.0, abs=0.1)
 
 

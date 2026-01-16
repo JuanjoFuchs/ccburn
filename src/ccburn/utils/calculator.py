@@ -41,53 +41,86 @@ def calculate_budget_pace(resets_at: datetime, window_hours: float) -> float:
 def calculate_burn_rate(
     snapshots: list[UsageSnapshot],
     limit_type: LimitType,
-    window_minutes: int = 5,
+    window_start: datetime,
+    window_hours: float,
+    min_points: int = 3,
+    min_span_pct: float = 0.10,
 ) -> float:
-    """Calculate burn rate as percentage points per hour.
+    """Calculate burn rate as percentage points per hour using linear regression.
 
-    Uses simple linear calculation over recent snapshots.
+    Uses least-squares linear regression over snapshots from the current window
+    for an accurate burn rate estimate.
 
     Args:
         snapshots: List of usage snapshots (should be sorted by timestamp)
         limit_type: Which limit to calculate burn rate for
-        window_minutes: How far back to look for calculation
+        window_start: Start of the current window (from limit_data)
+        window_hours: Duration of the window in hours
+        min_points: Minimum data points required for regression (default 3)
+        min_span_pct: Minimum time span as fraction of window (default 0.10 = 10%)
 
     Returns:
         Burn rate in percentage points per hour (e.g., 12.5 means 12.5%/hour)
+        Returns 0.0 if insufficient data (no projection should be shown)
     """
     if len(snapshots) < 2:
         return 0.0
 
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(minutes=window_minutes)
+    # Use actual window start, not now - window_minutes
+    cutoff = window_start
 
-    # Filter to recent snapshots
-    recent = [s for s in snapshots if s.timestamp >= cutoff]
+    # Filter to snapshots within window and extract (time, utilization) pairs
+    points: list[tuple[float, float]] = []  # (hours_from_start, utilization_pct)
+    first_timestamp = None
+    last_timestamp = None
 
-    if len(recent) < 2:
-        # Fall back to any 2 snapshots if not enough recent ones
-        recent = snapshots[-2:] if len(snapshots) >= 2 else []
+    for s in snapshots:
+        if s.timestamp < cutoff:
+            continue
+        limit = s.get_limit(limit_type)
+        if limit is None:
+            continue
+        if first_timestamp is None:
+            first_timestamp = s.timestamp
+        last_timestamp = s.timestamp
+        hours = (s.timestamp - first_timestamp).total_seconds() / 3600
+        points.append((hours, limit.utilization * 100))
 
-    if len(recent) < 2:
+    # Need at least min_points for meaningful regression
+    if len(points) < min_points:
         return 0.0
 
-    # Get utilization for the specified limit type
-    first = recent[0]
-    last = recent[-1]
+    # Check that data spans at least min_span_pct of the window
+    # e.g., for 5h session at 10%, need 30 min of data
+    # e.g., for 168h weekly at 10%, need ~17 hours of data
+    if first_timestamp and last_timestamp:
+        span_hours = (last_timestamp - first_timestamp).total_seconds() / 3600
+        min_span_hours = window_hours * min_span_pct
+        if span_hours < min_span_hours:
+            return 0.0
 
-    first_limit = first.get_limit(limit_type)
-    last_limit = last.get_limit(limit_type)
+    # If we have exactly 2 points, use simple slope
+    if len(points) == 2:
+        dx = points[1][0] - points[0][0]
+        if dx <= 0:
+            return 0.0
+        return (points[1][1] - points[0][1]) / dx
 
-    if first_limit is None or last_limit is None:
+    # Linear regression using least squares
+    # slope = (n*Σxy - Σx*Σy) / (n*Σx² - (Σx)²)
+    n = len(points)
+    sum_x = sum(p[0] for p in points)
+    sum_y = sum(p[1] for p in points)
+    sum_xy = sum(p[0] * p[1] for p in points)
+    sum_x2 = sum(p[0] ** 2 for p in points)
+
+    denominator = n * sum_x2 - sum_x**2
+    if abs(denominator) < 1e-10:
+        # All x values are the same (no time elapsed)
         return 0.0
 
-    delta_util = (last_limit.utilization - first_limit.utilization) * 100  # Convert to %
-    delta_hours = (last.timestamp - first.timestamp).total_seconds() / 3600
-
-    if delta_hours <= 0:
-        return 0.0
-
-    return delta_util / delta_hours  # %/hour
+    slope = (n * sum_xy - sum_x * sum_y) / denominator
+    return slope  # %/hour
 
 
 def estimate_time_to_empty(current_utilization: float, burn_rate_per_hour: float) -> int | None:
@@ -177,20 +210,23 @@ def get_status(utilization: float, budget_pace: float) -> str:
 def calculate_burn_metrics(
     limit_data: LimitData,
     snapshots: list[UsageSnapshot],
-    window_minutes: int = 5,
 ) -> BurnMetrics:
     """Calculate all burn metrics for a limit.
 
     Args:
         limit_data: Current limit data
         snapshots: Historical snapshots for burn rate calculation
-        window_minutes: How far back to look for burn rate
 
     Returns:
         BurnMetrics with all calculated values
     """
     budget_pace = calculate_budget_pace(limit_data.resets_at, limit_data.window_hours)
-    burn_rate = calculate_burn_rate(snapshots, limit_data.limit_type, window_minutes)
+    burn_rate = calculate_burn_rate(
+        snapshots,
+        limit_data.limit_type,
+        window_start=limit_data.window_start,
+        window_hours=limit_data.window_hours,
+    )
     time_to_empty = estimate_time_to_empty(limit_data.utilization, burn_rate)
     trend = classify_burn_trend(burn_rate)
     status = get_status(limit_data.utilization, budget_pace)
