@@ -127,7 +127,9 @@ class TestCLI:
 
     @patch("ccburn.app.CCBurnApp")
     def test_since_flag(self, mock_app_class):
-        """Test --since flag sets time window."""
+        """Test --since flag sets time window as sliding duration."""
+        from datetime import timedelta
+
         mock_app = MagicMock()
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
@@ -136,4 +138,4 @@ class TestCLI:
 
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs
-        assert call_kwargs["since"] is not None  # datetime object
+        assert call_kwargs["since_duration"] == timedelta(hours=2)  # timedelta for sliding window

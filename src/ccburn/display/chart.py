@@ -23,7 +23,7 @@ class BurnupChart(JupyterMixin):
         self,
         limit_data: LimitData | None,
         snapshots: list[UsageSnapshot],
-        since: datetime | None = None,
+        since_duration: timedelta | None = None,
         explicit_height: int | None = None,
     ):
         """Initialize the burnup chart.
@@ -31,12 +31,12 @@ class BurnupChart(JupyterMixin):
         Args:
             limit_data: Current limit data (for window boundaries)
             snapshots: Historical snapshots to plot
-            since: Only show data since this time (zoom view)
+            since_duration: Duration for zoom view (sliding window, e.g., last 1h)
             explicit_height: Override chart height
         """
         self.limit_data = limit_data
         self.snapshots = snapshots
-        self.since = since
+        self.since_duration = since_duration
         self.explicit_height = explicit_height
         self.decoder = AnsiDecoder()
 
@@ -86,12 +86,14 @@ class BurnupChart(JupyterMixin):
         window_end = self.limit_data.resets_at
         now = datetime.now(timezone.utc)
 
-        # Display window (may be zoomed with --since)
+        # Display window (may be zoomed with --since as a sliding window)
         display_start = original_window_start
         display_end = window_end
-        if self.since:
-            display_start = max(original_window_start, self.since)
-            display_end = now  # When zoomed, show until now, not session end
+        if self.since_duration:
+            # Sliding window: always show the last N duration (e.g., last 1h)
+            # Both start and end move forward with time
+            display_start = max(original_window_start, now - self.since_duration)
+            display_end = now
 
         # Filter snapshots to display window
         relevant_snapshots = [
@@ -164,7 +166,7 @@ class BurnupChart(JupyterMixin):
         plt.xlim(0, display_hours)
 
         # Y-axis: dynamic when zoomed (--since), fixed 0-100 otherwise
-        if self.since and values:
+        if self.since_duration and values:
             # Calculate dynamic range from data with padding
             all_y_values = values + pace_y
             data_min = min(all_y_values)
@@ -186,7 +188,7 @@ class BurnupChart(JupyterMixin):
         # Add "now" vertical line when showing full window (not zoomed)
         # Use dotted effect by plotting points at intervals
         now_hours_for_tick = None
-        if not self.since:
+        if not self.since_duration:
             now_hours = to_hours(now)
             if 0 < now_hours < display_hours:
                 # Create dotted vertical line with points using braille marker to match other lines
@@ -291,7 +293,7 @@ def create_simple_chart(
     snapshots: list[UsageSnapshot],
     width: int = 80,
     height: int = 15,
-    since: datetime | None = None,
+    since_duration: timedelta | None = None,
 ) -> str:
     """Create a simple chart string without Rich integration.
 
@@ -300,10 +302,10 @@ def create_simple_chart(
         snapshots: Historical snapshots
         width: Chart width
         height: Chart height
-        since: Only show data since this time
+        since_duration: Duration for zoom view (sliding window)
 
     Returns:
         Rendered chart string
     """
-    chart = BurnupChart(limit_data, snapshots, since=since, explicit_height=height)
+    chart = BurnupChart(limit_data, snapshots, since_duration=since_duration, explicit_height=height)
     return chart._create_chart(width, height)

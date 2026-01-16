@@ -1,7 +1,7 @@
 """CLI command definitions for ccburn."""
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import typer
 from rich.console import Console
@@ -132,12 +132,11 @@ def run_app(
     except ImportError:
         from ccburn.app import CCBurnApp
 
-    # Calculate since datetime if provided
-    since_dt = None
+    # Parse since duration if provided
+    since_duration = None
     if since:
         try:
-            since_delta = parse_duration(since)
-            since_dt = datetime.now(timezone.utc) - since_delta
+            since_duration = parse_duration(since)
         except typer.BadParameter as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1) from None
@@ -145,7 +144,7 @@ def run_app(
     app = CCBurnApp(
         limit_type=limit_type,
         interval=interval,
-        since=since_dt,
+        since_duration=since_duration,
         json_output=json_output,
         once=once,
         compact=compact,

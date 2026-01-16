@@ -1,7 +1,7 @@
 """Layout manager for ccburn TUI."""
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from rich.console import Console
 from rich.layout import Layout
@@ -68,7 +68,7 @@ class BurnupLayout:
         snapshots: list[UsageSnapshot],
         error: str | None = None,
         stale_since: datetime | None = None,
-        since: datetime | None = None,
+        since_duration: timedelta | None = None,
     ) -> Layout:
         """Update the layout with new data.
 
@@ -78,7 +78,7 @@ class BurnupLayout:
             snapshots: Historical snapshots for chart
             error: Error message to display (if any)
             stale_since: When data became stale (if using cached data)
-            since: Zoom view start time
+            since_duration: Zoom view duration (sliding window)
 
         Returns:
             Updated Rich Layout
@@ -97,14 +97,14 @@ class BurnupLayout:
         if self.should_use_compact_mode():
             return self._create_compact_layout(limit_type, width, height)
 
-        return self._create_full_layout(limit_type, width, height, since)
+        return self._create_full_layout(limit_type, width, height, since_duration)
 
     def _create_full_layout(
         self,
         limit_type: LimitType,
         width: int,
         height: int,
-        since: datetime | None = None,
+        since_duration: timedelta | None = None,
     ) -> Layout:
         """Create full TUI layout with header, gauges, and chart.
 
@@ -112,7 +112,7 @@ class BurnupLayout:
             limit_type: Which limit to display
             width: Terminal width
             height: Terminal height
-            since: Zoom view start time
+            since_duration: Zoom view duration (sliding window)
 
         Returns:
             Rich Layout
@@ -155,7 +155,7 @@ class BurnupLayout:
         chart = BurnupChart(
             self._last_limit_data,
             self._last_snapshots,
-            since=since,
+            since_duration=since_duration,
             explicit_height=chart_height,
         )
         chart_layout.update(chart)

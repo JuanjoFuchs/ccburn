@@ -34,7 +34,7 @@ class CCBurnApp:
         self,
         limit_type: LimitType = LimitType.SESSION,
         interval: int = 5,
-        since: datetime | None = None,
+        since_duration: timedelta | None = None,
         json_output: bool = False,
         once: bool = False,
         compact: bool = False,
@@ -45,7 +45,7 @@ class CCBurnApp:
         Args:
             limit_type: Which limit to display
             interval: Refresh interval in seconds
-            since: Only show data since this time (zoom view)
+            since_duration: Time window duration for zoom view (sliding window)
             json_output: Output JSON instead of TUI
             once: Print once and exit
             compact: Single-line output for status bars
@@ -53,7 +53,7 @@ class CCBurnApp:
         """
         self.limit_type = limit_type
         self.interval = interval
-        self.since = since
+        self.since_duration = since_duration
         self.json_output = json_output
         self.once = once
         self.compact = compact
@@ -70,6 +70,16 @@ class CCBurnApp:
         self.last_fetch_time: datetime | None = None
         self.last_error: str | None = None
         self.snapshots: list[UsageSnapshot] = []
+
+    def _get_since_datetime(self) -> datetime | None:
+        """Calculate the since datetime based on current time and duration.
+
+        Returns:
+            datetime for filtering, or None if no duration set
+        """
+        if self.since_duration is None:
+            return None
+        return datetime.now(timezone.utc) - self.since_duration
 
     def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
@@ -93,10 +103,10 @@ class CCBurnApp:
                 self.history = HistoryDB()
                 # Prune old data on startup
                 self.history.prune_old_data()
-                # Load existing snapshots
+                # Load existing snapshots (use current since datetime)
                 self.snapshots = self.history.get_snapshots_for_limit(
                     self.limit_type,
-                    since=self.since,
+                    since=self._get_since_datetime(),
                 )
             except Exception as e:
                 # Fall back to in-memory if SQLite fails
@@ -134,10 +144,10 @@ class CCBurnApp:
                         self.last_snapshot = snapshot
                         self.last_fetch_time = snapshot.timestamp
                         self.last_error = None
-                        # Reload snapshots from database
+                        # Reload snapshots from database (use current since datetime)
                         self.snapshots = self.history.get_snapshots_for_limit(
                             self.limit_type,
-                            since=self.since,
+                            since=self._get_since_datetime(),
                         )
                         return True
 
@@ -154,9 +164,10 @@ class CCBurnApp:
             # Add to local list
             self.snapshots.append(snapshot)
 
-            # Keep only relevant snapshots (based on since or window)
-            if self.since:
-                self.snapshots = [s for s in self.snapshots if s.timestamp >= self.since]
+            # Keep only relevant snapshots (based on since_duration or window)
+            since_dt = self._get_since_datetime()
+            if since_dt:
+                self.snapshots = [s for s in self.snapshots if s.timestamp >= since_dt]
             else:
                 # Keep last 24 hours of data for calculations
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -276,7 +287,7 @@ class CCBurnApp:
             limit_data,
             self.snapshots,
             error=self.last_error,
-            since=self.since,
+            since_duration=self.since_duration,
         )
         self.console.print(layout)
 
@@ -307,7 +318,7 @@ class CCBurnApp:
                 limit_data,
                 self.snapshots,
                 error=self.last_error,
-                since=self.since,
+                since_duration=self.since_duration,
             )
 
             # Set initial window title
@@ -367,7 +378,7 @@ class CCBurnApp:
                         self.snapshots,
                         error=self.last_error,
                         stale_since=stale_since,
-                        since=self.since,
+                        since_duration=self.since_duration,
                     )
                     live.update(updated_layout)
                     self._update_window_title()
