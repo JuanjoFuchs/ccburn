@@ -133,7 +133,24 @@ jobs:
           files: release-files/*
           generate_release_notes: true
 
-  # Job 4: Publish to npm
+  # Job 4: Trigger WinGet publish
+  trigger-winget:
+    runs-on: ubuntu-latest
+    needs: [build-packages, create-release]
+    steps:
+      - name: Trigger WinGet publish workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'winget-publish.yml',
+              ref: 'main',
+              inputs: { release_tag: '${{ github.ref_name }}' }
+            })
+
+  # Job 5: Publish to npm
   publish-npm:
     runs-on: ubuntu-latest
     needs: [build-packages, create-release]
