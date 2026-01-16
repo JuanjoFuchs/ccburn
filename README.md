@@ -6,7 +6,7 @@
 [![PyPI](https://img.shields.io/pypi/v/ccburn)](https://pypi.org/project/ccburn/)
 [![Python](https://img.shields.io/pypi/pyversions/ccburn)](https://pypi.org/project/ccburn/)
 [![GitHub Release](https://img.shields.io/github/v/release/JuanjoFuchs/ccburn)](https://github.com/JuanjoFuchs/ccburn/releases)
-[![WinGet](https://img.shields.io/badge/WinGet-pending-yellow)](https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+ccburn)
+[![WinGet](https://img.shields.io/winget/v/JuanjoFuchs.ccburn)](https://winstall.app/apps/JuanjoFuchs.ccburn)
 [![npm downloads](https://img.shields.io/npm/dt/ccburn?label=npm%20downloads)](https://www.npmjs.com/package/ccburn)
 [![PyPI downloads](https://img.shields.io/pepy/dt/ccburn?label=pypi%20downloads)](https://pepy.tech/project/ccburn)
 [![GitHub downloads](https://img.shields.io/github/downloads/JuanjoFuchs/ccburn/total?label=github%20downloads)](https://github.com/JuanjoFuchs/ccburn/releases)
@@ -37,7 +37,7 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 
 Run `claude` and login first to refresh credentials.
 
-### WinGet (*pending approval*)
+### WinGet (Windows)
 
 ```powershell
 winget install JuanjoFuchs.ccburn
