@@ -3,7 +3,6 @@
 import os
 import signal
 import threading
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -71,7 +70,8 @@ class CCBurnApp:
         self.layout = BurnupLayout(self.console)
 
         # State
-        self.running = threading.Event()
+        self.running = True
+        self._stop_event = threading.Event()  # For interruptible sleep
         self.last_snapshot: UsageSnapshot | None = None
         self.last_fetch_time: datetime | None = None
         self.last_error: str | None = None
@@ -197,18 +197,6 @@ class CCBurnApp:
             self.last_error = f"Unexpected error: {e}"
             return False
 
-    def _should_refresh(self) -> bool:
-        """Check if we should fetch new data.
-
-        Returns:
-            True if it's time to refresh
-        """
-        if self.last_fetch_time is None:
-            return True
-
-        elapsed = (datetime.now(timezone.utc) - self.last_fetch_time).total_seconds()
-        return elapsed >= self.interval
-
     def run(self) -> int:
         """Run the application.
 
@@ -311,7 +299,7 @@ class CCBurnApp:
             Exit code
         """
         self._setup_signal_handlers()
-        self.running.set()
+        self.running = True
 
         try:
             # Create initial display
@@ -333,7 +321,7 @@ class CCBurnApp:
             with Live(
                 initial_layout,
                 console=self.console,
-                refresh_per_second=1,
+                auto_refresh=False,  # Manual refresh only - saves CPU
                 transient=False,
                 screen=True,
                 vertical_overflow="visible",
@@ -358,18 +346,14 @@ class CCBurnApp:
         Args:
             live: Rich Live instance
         """
-        last_update = 0.0
-
-        while self.running.is_set():
+        while self.running:
             try:
-                current_time = time.time()
+                # Fetch new data
+                data_changed = self._fetch_and_update()
 
-                # Check if we should refresh data
-                if self._should_refresh():
-                    self._fetch_and_update()
-
-                # Update display
-                if current_time - last_update >= 1.0:  # Update display every second
+                # Only re-render layout when data actually changes
+                # This avoids expensive chart re-rendering
+                if data_changed:
                     limit_data = None
                     if self.last_snapshot:
                         limit_data = self.last_snapshot.get_limit(self.limit_type)
@@ -387,15 +371,16 @@ class CCBurnApp:
                         since_duration=self.since_duration,
                     )
                     live.update(updated_layout)
+                    live.refresh()  # Manual refresh since auto_refresh=False
                     self._update_window_title()
-                    last_update = current_time
 
-                # Small sleep to prevent busy waiting
-                time.sleep(0.05)
+                # Sleep until next refresh interval
+                # Use Event.wait() for interruptible sleep on shutdown
+                self._stop_event.wait(timeout=self.interval)
 
             except Exception:
                 # Log but continue
-                time.sleep(0.5)
+                self._stop_event.wait(timeout=self.interval)
 
     def _create_json_output(self) -> dict:
         """Create JSON output structure.
@@ -482,7 +467,8 @@ class CCBurnApp:
 
     def stop(self) -> None:
         """Stop the application."""
-        self.running.clear()
+        self.running = False
+        self._stop_event.set()  # Wake up from sleep immediately
 
     def _update_window_title(self) -> None:
         """Update terminal window title with current status."""
