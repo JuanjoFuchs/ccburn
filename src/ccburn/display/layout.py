@@ -24,7 +24,7 @@ class BurnupLayout:
 
     MIN_WIDTH = 40
     MIN_HEIGHT = 10
-    COMPACT_WIDTH = 60
+    COMPACT_WIDTH = 40
     COMPACT_HEIGHT = 15
 
     def __init__(self, console: Console | None = None):
