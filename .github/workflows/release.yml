@@ -87,7 +87,11 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Build executable
-        run: pyinstaller --onefile --name ccburn --console src/ccburn/main.py
+        run: |
+          pyinstaller --onefile --name ccburn --console \
+            --collect-submodules rich._unicode_data \
+            --hidden-import rich._unicode_data \
+            src/ccburn/main.py
 
       - name: Rename executable
         shell: bash
