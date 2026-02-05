@@ -6,9 +6,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
-    from .models import LimitData, LimitType, UsageSnapshot
+    from .models import LimitData, LimitType, MonthlyLimitData, UsageSnapshot
 except ImportError:
-    from ccburn.data.models import LimitData, LimitType, UsageSnapshot
+    from ccburn.data.models import LimitData, LimitType, MonthlyLimitData, UsageSnapshot
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,12 @@ class HistoryDB:
         -- 7-day opus
         seven_day_opus_utilization REAL,
         seven_day_opus_resets_at TEXT,
+
+        -- Monthly credits (enterprise)
+        monthly_limit_cents INTEGER,
+        monthly_used_credits_cents REAL,
+        monthly_utilization REAL,
+        monthly_resets_at TEXT,
 
         -- Raw API response for debugging
         raw_response TEXT
@@ -84,6 +90,7 @@ class HistoryDB:
                 str(self.db_path) if isinstance(self.db_path, Path) else self.db_path,
                 detect_types=sqlite3.PARSE_DECLTYPES,
                 timeout=10.0,  # Wait up to 10 seconds for locks
+                check_same_thread=False,  # Allow cross-thread access for loading spinner
             )
             self._conn.row_factory = sqlite3.Row
             # Enable WAL mode for better concurrent read/write performance
@@ -103,6 +110,19 @@ class HistoryDB:
 
         conn.executescript(self.SCHEMA)
         conn.commit()
+
+        # Schema migration: Add monthly columns if they don't exist
+        cursor = conn.execute("PRAGMA table_info(usage_snapshots)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        if "monthly_utilization" not in columns:
+            conn.executescript("""
+                ALTER TABLE usage_snapshots ADD COLUMN monthly_limit_cents INTEGER;
+                ALTER TABLE usage_snapshots ADD COLUMN monthly_used_credits_cents REAL;
+                ALTER TABLE usage_snapshots ADD COLUMN monthly_utilization REAL;
+                ALTER TABLE usage_snapshots ADD COLUMN monthly_resets_at TEXT;
+            """)
+            conn.commit()
 
     def save_snapshot(self, snapshot: UsageSnapshot) -> None:
         """Save a usage snapshot to the database.
@@ -152,6 +172,18 @@ class HistoryDB:
             snapshot.weekly_opus.resets_at.isoformat() if snapshot.weekly_opus else None
         )
 
+        # Monthly credits data
+        monthly_limit = (
+            snapshot.monthly.monthly_limit_cents if snapshot.monthly else None
+        )
+        monthly_used = (
+            snapshot.monthly.used_credits_cents if snapshot.monthly else None
+        )
+        monthly_util = snapshot.monthly.utilization if snapshot.monthly else None
+        monthly_resets = (
+            snapshot.monthly.resets_at.isoformat() if snapshot.monthly else None
+        )
+
         conn.execute(
             """
             INSERT INTO usage_snapshots (
@@ -160,8 +192,10 @@ class HistoryDB:
                 seven_day_all_utilization, seven_day_all_resets_at,
                 seven_day_sonnet_utilization, seven_day_sonnet_resets_at,
                 seven_day_opus_utilization, seven_day_opus_resets_at,
+                monthly_limit_cents, monthly_used_credits_cents,
+                monthly_utilization, monthly_resets_at,
                 raw_response
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 snapshot.timestamp.isoformat(),
@@ -173,6 +207,10 @@ class HistoryDB:
                 sonnet_resets,
                 opus_util,
                 opus_resets,
+                monthly_limit,
+                monthly_used,
+                monthly_util,
+                monthly_resets,
                 snapshot.raw_response,
             ),
         )
@@ -324,12 +362,27 @@ class HistoryDB:
                     limit_type=LimitType.WEEKLY,  # Same window as weekly
                 )
 
+            # Parse monthly credits
+            monthly = None
+            monthly_util = row["monthly_utilization"] if "monthly_utilization" in row.keys() else None
+            if monthly_util is not None:
+                resets_at = datetime.fromisoformat(row["monthly_resets_at"])
+                if resets_at.tzinfo is None:
+                    resets_at = resets_at.replace(tzinfo=timezone.utc)
+                monthly = MonthlyLimitData(
+                    monthly_limit_cents=row["monthly_limit_cents"],
+                    used_credits_cents=row["monthly_used_credits_cents"],
+                    utilization=monthly_util,
+                    resets_at=resets_at,
+                )
+
             return UsageSnapshot(
                 timestamp=timestamp,
                 session=session,
                 weekly=weekly,
                 weekly_sonnet=weekly_sonnet,
                 weekly_opus=weekly_opus,
+                monthly=monthly,
                 raw_response=row["raw_response"],
             )
         except (ValueError, KeyError, TypeError) as e:

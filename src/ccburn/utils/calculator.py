@@ -3,9 +3,15 @@
 from datetime import datetime, timedelta, timezone
 
 try:
-    from ..data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
+    from ..data.models import BurnMetrics, LimitData, LimitType, MonthlyLimitData, UsageSnapshot
 except ImportError:
-    from ccburn.data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
+    from ccburn.data.models import (
+        BurnMetrics,
+        LimitData,
+        LimitType,
+        MonthlyLimitData,
+        UsageSnapshot,
+    )
 
 
 def calculate_budget_pace(resets_at: datetime, window_hours: float) -> float:
@@ -93,9 +99,10 @@ def calculate_burn_rate(
     # Check that data spans at least min_span_pct of the window
     # e.g., for 5h session at 10%, need 30 min of data
     # e.g., for 168h weekly at 10%, need ~17 hours of data
+    # Cap at 6 hours max so monthly (744h) doesn't require 3+ days of data
     if first_timestamp and last_timestamp:
         span_hours = (last_timestamp - first_timestamp).total_seconds() / 3600
-        min_span_hours = window_hours * min_span_pct
+        min_span_hours = min(window_hours * min_span_pct, 6.0)
         if span_hours < min_span_hours:
             return 0.0
 
@@ -208,7 +215,7 @@ def get_status(utilization: float, budget_pace: float) -> str:
 
 
 def calculate_burn_metrics(
-    limit_data: LimitData,
+    limit_data: LimitData | MonthlyLimitData,
     snapshots: list[UsageSnapshot],
 ) -> BurnMetrics:
     """Calculate all burn metrics for a limit.

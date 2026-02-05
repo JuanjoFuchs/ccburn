@@ -9,10 +9,10 @@ from rich.console import Console, ConsoleOptions, Group, RenderableType
 from rich.jupyter import JupyterMixin
 
 try:
-    from ..data.models import BurnMetrics, LimitData, UsageSnapshot
+    from ..data.models import BurnMetrics, LimitData, MonthlyLimitData, UsageSnapshot
     from ..utils.formatting import get_utilization_color
 except ImportError:
-    from ccburn.data.models import BurnMetrics, LimitData, UsageSnapshot
+    from ccburn.data.models import BurnMetrics, LimitData, MonthlyLimitData, UsageSnapshot
     from ccburn.utils.formatting import get_utilization_color
 
 
@@ -21,7 +21,7 @@ class BurnupChart(JupyterMixin):
 
     def __init__(
         self,
-        limit_data: LimitData | None,
+        limit_data: LimitData | MonthlyLimitData | None,
         snapshots: list[UsageSnapshot],
         since_duration: timedelta | None = None,
         explicit_height: int | None = None,
@@ -253,8 +253,6 @@ class BurnupChart(JupyterMixin):
         num_ticks = 5
         tick_positions = []
         tick_labels = []
-        # Use date format for windows > 24 hours
-        use_date_format = display_hours > 24
         for i in range(num_ticks):
             hours = i * display_hours / (num_ticks - 1)
             tick_positions.append(hours)
@@ -267,7 +265,10 @@ class BurnupChart(JupyterMixin):
             else:
                 local_time = local_time.replace(second=0, microsecond=0)
             # Format based on window size
-            if use_date_format:
+            if display_hours > 168:  # > 7 days (monthly)
+                # Show month/day for multi-week windows (e.g., "2/8" for Feb 8)
+                tick_labels.append(f"{local_time.month}/{local_time.day}")
+            elif display_hours > 24:
                 # Show day and time for multi-day windows (e.g., "Mon 15h")
                 tick_labels.append(local_time.strftime("%a %Hh"))
             else:
@@ -291,7 +292,9 @@ class BurnupChart(JupyterMixin):
                 local_now = local_now.replace(second=0, microsecond=0) + timedelta(minutes=1)
             else:
                 local_now = local_now.replace(second=0, microsecond=0)
-            if use_date_format:
+            if display_hours > 168:
+                tick_labels.append(f"{local_now.month}/{local_now.day} {local_now.hour}h")
+            elif display_hours > 24:
                 tick_labels.append(local_now.strftime("%a %Hh"))
             else:
                 tick_labels.append(local_now.strftime("%H:%M"))
@@ -313,7 +316,9 @@ class BurnupChart(JupyterMixin):
             else:
                 local_hits_100 = local_hits_100.replace(second=0, microsecond=0)
             tick_positions.append(hits_100_hours_for_tick)
-            if use_date_format:
+            if display_hours > 168:
+                tick_labels.append(f"{local_hits_100.month}/{local_hits_100.day} {local_hits_100.hour}h")
+            elif display_hours > 24:
                 tick_labels.append(local_hits_100.strftime("%a %Hh"))
             else:
                 tick_labels.append(local_hits_100.strftime("%H:%M"))
@@ -358,7 +363,7 @@ class BurnupChart(JupyterMixin):
 
 
 def create_simple_chart(
-    limit_data: LimitData | None,
+    limit_data: LimitData | MonthlyLimitData | None,
     snapshots: list[UsageSnapshot],
     width: int = 80,
     height: int = 15,

@@ -8,12 +8,18 @@ from rich.layout import Layout
 from rich.text import Text
 
 try:
-    from ..data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
+    from ..data.models import BurnMetrics, LimitData, LimitType, MonthlyLimitData, UsageSnapshot
     from ..utils.calculator import calculate_budget_pace, calculate_burn_metrics
     from .chart import BurnupChart
     from .gauges import create_gauge_section, create_header
 except ImportError:
-    from ccburn.data.models import BurnMetrics, LimitData, LimitType, UsageSnapshot
+    from ccburn.data.models import (
+        BurnMetrics,
+        LimitData,
+        LimitType,
+        MonthlyLimitData,
+        UsageSnapshot,
+    )
     from ccburn.display.chart import BurnupChart
     from ccburn.display.gauges import create_gauge_section, create_header
     from ccburn.utils.calculator import calculate_budget_pace, calculate_burn_metrics
@@ -34,7 +40,7 @@ class BurnupLayout:
             console: Rich Console instance (creates one if not provided)
         """
         self.console = console or Console()
-        self._last_limit_data: LimitData | None = None
+        self._last_limit_data: LimitData | MonthlyLimitData | None = None
         self._last_snapshots: list[UsageSnapshot] = []
         self._last_metrics: BurnMetrics | None = None
         self._error_message: str | None = None
@@ -64,7 +70,7 @@ class BurnupLayout:
     def update(
         self,
         limit_type: LimitType,
-        limit_data: LimitData | None,
+        limit_data: LimitData | MonthlyLimitData | None,
         snapshots: list[UsageSnapshot],
         error: str | None = None,
         stale_since: datetime | None = None,

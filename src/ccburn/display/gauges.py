@@ -9,11 +9,11 @@ from rich.table import Table
 from rich.text import Text
 
 try:
-    from ..data.models import LimitData, LimitType
+    from ..data.models import LimitData, LimitType, MonthlyLimitData
     from ..utils.calculator import calculate_budget_pace
     from ..utils.formatting import format_reset_time, get_utilization_color
 except ImportError:
-    from ccburn.data.models import LimitData, LimitType
+    from ccburn.data.models import LimitData, LimitType, MonthlyLimitData
     from ccburn.utils.calculator import calculate_budget_pace
     from ccburn.utils.formatting import format_reset_time, get_utilization_color
 
@@ -64,6 +64,23 @@ def _supports_emoji() -> bool:
     return _emoji_support_cache
 
 
+def format_credits(dollars: float) -> str:
+    """Format dollar amount for display.
+
+    Args:
+        dollars: Amount in dollars
+
+    Returns:
+        Formatted string like "$74.75" or "$1,234"
+    """
+    if dollars >= 1000:
+        return f"${dollars:,.0f}"
+    elif dollars >= 100:
+        return f"${dollars:.0f}"
+    else:
+        return f"${dollars:.2f}"
+
+
 def get_pace_emoji(utilization: float, budget_pace: float, ascii_fallback: bool = False) -> str:
     """Get emoji indicator based on utilization vs budget pace.
 
@@ -90,7 +107,9 @@ def get_pace_emoji(utilization: float, budget_pace: float, ascii_fallback: bool 
         return "[=]" if use_ascii else "🔥"  # On pace - normal burn
 
 
-def create_header(limit_type: LimitType, limit_data: LimitData | None) -> Table:
+def create_header(
+    limit_type: LimitType, limit_data: LimitData | MonthlyLimitData | None
+) -> Table:
     """Create the header line with limit name and reset countdown.
 
     Args:
@@ -129,13 +148,13 @@ def create_header(limit_type: LimitType, limit_data: LimitData | None) -> Table:
 
 
 def create_gauge_section(
-    limit_data: LimitData | None,
+    limit_data: LimitData | MonthlyLimitData | None,
     budget_pace: float,
 ) -> Table:
     """Create the 2-bar gauge section for a limit.
 
     Args:
-        limit_data: Current limit data
+        limit_data: Current limit data (LimitData or MonthlyLimitData)
         budget_pace: Percentage of window elapsed (0-1)
 
     Returns:
@@ -144,18 +163,18 @@ def create_gauge_section(
     table = Table.grid(padding=(0, 1), expand=True)
     table.add_column(width=14)  # Label
     table.add_column(ratio=1)  # Bar
-    table.add_column(width=8, justify="right")  # Value
+    table.add_column(width=18, justify="right")  # Value (wider for dollar amounts)
 
     if limit_data is None:
         # Show empty/loading state
         table.add_row(
             Text("📊 Usage", style="dim"),
-            ProgressBar(total=100, completed=0, style=Style(color="dim")),
+            ProgressBar(total=100, completed=0, style=Style(color="grey37")),
             Text("--%", style="dim"),
         )
         table.add_row(
             Text("⏳ Elapsed", style="dim"),
-            ProgressBar(total=100, completed=0, style=Style(color="dim")),
+            ProgressBar(total=100, completed=0, style=Style(color="grey37")),
             Text("--%", style="dim"),
         )
         return table
@@ -178,10 +197,18 @@ def create_gauge_section(
     usage_label.append("📊 ", style="")
     usage_label.append("Usage", style=f"bold {usage_color}")
 
+    # Format value text - dollars for monthly, percentage for others
+    if isinstance(limit_data, MonthlyLimitData):
+        used = format_credits(limit_data.used_credits_dollars)
+        total = format_credits(limit_data.monthly_limit_dollars)
+        value_text = Text(f"{used} / {total}", style=usage_color)
+    else:
+        value_text = Text(f"{utilization_percent:.0f}%", style=usage_color)
+
     table.add_row(
         usage_label,
         usage_bar,
-        Text(f"{utilization_percent:.0f}%", style=usage_color),
+        value_text,
     )
 
     # Time Elapsed bar - always blue
@@ -210,17 +237,19 @@ def create_compact_output(
     session: LimitData | None,
     weekly: LimitData | None,
     weekly_sonnet: LimitData | None,
+    monthly: MonthlyLimitData | None,
     budget_pace_session: float,
 ) -> str:
     """Create compact single-line output for status bars.
 
-    Format: Session: 🧊 62% (2h14m) | Weekly: 🔥 29% | Sonnet: 🧊 1%
+    Format: Session: 🧊 62% (2h14m) | Weekly: 🔥 29% | Sonnet: 🧊 1% | Monthly: 🧊 $74.75
     Emojis indicate pace: 🧊 (behind), 🔥 (on pace), 🚨 (ahead)
 
     Args:
         session: Session limit data
         weekly: Weekly limit data
         weekly_sonnet: Weekly sonnet limit data
+        monthly: Monthly credits data
         budget_pace_session: Budget pace for session (for status indicator)
 
     Returns:
@@ -240,24 +269,29 @@ def create_compact_output(
         pace = calculate_budget_pace(session.resets_at, session.window_hours)
         emoji = get_pace_emoji(session.utilization, pace)
         parts.append(f"Session: {emoji} {session.utilization*100:.0f}% {time_str}".strip())
-    else:
-        parts.append("Session: --")
 
     # Weekly
     if weekly:
         pace = calculate_budget_pace(weekly.resets_at, weekly.window_hours)
         emoji = get_pace_emoji(weekly.utilization, pace)
         parts.append(f"Weekly: {emoji} {weekly.utilization*100:.0f}%")
-    else:
-        parts.append("Weekly: --")
 
     # Sonnet
     if weekly_sonnet:
         pace = calculate_budget_pace(weekly_sonnet.resets_at, weekly_sonnet.window_hours)
         emoji = get_pace_emoji(weekly_sonnet.utilization, pace)
         parts.append(f"Sonnet: {emoji} {weekly_sonnet.utilization*100:.0f}%")
-    else:
-        parts.append("Sonnet: --")
+
+    # Monthly credits
+    if monthly:
+        pace = calculate_budget_pace(monthly.resets_at, monthly.window_hours)
+        emoji = get_pace_emoji(monthly.utilization, pace)
+        dollars = format_credits(monthly.used_credits_dollars)
+        parts.append(f"Monthly: {emoji} {dollars}")
+
+    # If nothing available, show placeholder
+    if not parts:
+        parts.append("No data available")
 
     return " | ".join(parts)
 

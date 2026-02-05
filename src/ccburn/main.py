@@ -2,6 +2,7 @@
 
 
 import typer
+from rich.console import Console
 
 try:
     from .cli import (
@@ -15,6 +16,7 @@ try:
         run_app,
     )
     from .data.models import LimitType
+    from .data.usage_client import UsageClient
 except ImportError:
     from ccburn.cli import (
         CompactOption,
@@ -27,6 +29,31 @@ except ImportError:
         run_app,
     )
     from ccburn.data.models import LimitType
+    from ccburn.data.usage_client import UsageClient
+
+
+def auto_detect_limit_type() -> LimitType | None:
+    """Auto-detect which limit type to use based on available data.
+
+    Priority: session -> monthly -> weekly
+
+    Returns:
+        Best available LimitType, or None if no data available.
+    """
+    try:
+        client = UsageClient()
+        snapshot = client.fetch_usage()
+
+        if snapshot.session is not None:
+            return LimitType.SESSION
+        if snapshot.monthly is not None:
+            return LimitType.MONTHLY
+        if snapshot.weekly is not None:
+            return LimitType.WEEKLY
+
+        return None
+    except Exception:
+        return None
 
 
 app = typer.Typer(
@@ -60,14 +87,14 @@ def main(
     """ccburn - Claude Code usage limit visualizer.
 
     Visualize your Claude Code usage limits with real-time burn-up charts.
-    Shows 5-hour rolling session limit by default.
+    Auto-detects available data (session or monthly credits).
 
     \b
     Examples:
-        ccburn              # Live TUI showing session limit
-        ccburn session      # Same as above (explicit)
-        ccburn weekly       # Show 7-day weekly limit
-        ccburn weekly-sonnet # Show 7-day Sonnet limit
+        ccburn              # Auto-detect best available data
+        ccburn session      # Explicit: 5-hour rolling session limit
+        ccburn weekly       # Explicit: 7-day weekly limit
+        ccburn monthly      # Explicit: Monthly credits (enterprise)
         ccburn --json       # JSON output
         ccburn --compact    # Single-line for status bars
         ccburn --once       # Print once and exit
@@ -81,10 +108,20 @@ def main(
             typer.echo("ccburn 1.0.0")
         raise typer.Exit()
 
-    # If no subcommand, default to session
+    # If no subcommand, auto-detect best available limit type
     if ctx.invoked_subcommand is None:
+        console = Console()
+
+        # Auto-detect which data is available
+        limit_type = auto_detect_limit_type()
+
+        if limit_type is None:
+            console.print("[red]No usage data available.[/red]")
+            console.print("\n[dim]Check that Claude Code is running and authenticated.[/dim]")
+            raise typer.Exit(1)
+
         run_app(
-            LimitType.SESSION,
+            limit_type,
             json_output=json_output,
             once=once,
             compact=compact,

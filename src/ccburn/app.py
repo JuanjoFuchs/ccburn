@@ -3,11 +3,13 @@
 import os
 import signal
 import threading
+import time as _time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from rich.console import Console
 from rich.live import Live
+from rich.text import Text
 
 try:
     from .data.credentials import CredentialsNotFoundError, TokenExpiredError
@@ -137,6 +139,7 @@ class CCBurnApp:
         Returns:
             True if fetch succeeded
         """
+        _ft0 = _time.perf_counter()
         try:
             snapshot = None
 
@@ -155,10 +158,16 @@ class CCBurnApp:
                             self.limit_type,
                             since=self._get_since_datetime(),
                         )
+                        if self.debug:
+                            self.console.print(f"[dim]  fetch: used cache (age={age:.1f}s) in {_time.perf_counter()-_ft0:.3f}s[/dim]")
                         return True
 
+            _ft1 = _time.perf_counter()
             # No fresh cached data, fetch from API
             snapshot = self.client.fetch_usage()
+            _ft2 = _time.perf_counter()
+            if self.debug:
+                self.console.print(f"[dim]  fetch: API call took {_ft2-_ft1:.3f}s[/dim]")
             self.last_snapshot = snapshot
             self.last_fetch_time = datetime.now(timezone.utc)
             self.last_error = None
@@ -197,25 +206,122 @@ class CCBurnApp:
             self.last_error = f"Unexpected error: {e}"
             return False
 
+    def _fetch_with_loading(self) -> bool:
+        """Fetch data while showing a loading message with elapsed time.
+
+        Returns:
+            True if fetch succeeded
+        """
+        result_holder = {"result": False, "done": False}
+
+        def fetch_thread():
+            result_holder["result"] = self._fetch_and_update()
+            result_holder["done"] = True
+
+        thread = threading.Thread(target=fetch_thread, daemon=True)
+        thread.start()
+
+        start_time = _time.perf_counter()
+        with Live(console=self.console, refresh_per_second=10, transient=True) as live:
+            while not result_holder["done"]:
+                elapsed = _time.perf_counter() - start_time
+                text = Text()
+                text.append("🔥 ", style="yellow")
+                text.append("Fetching data from Anthropic API... ", style="dim")
+                text.append(f"{elapsed:.1f}s", style="cyan")
+                live.update(text)
+                _time.sleep(0.1)
+
+        thread.join(timeout=1.0)
+        return result_holder["result"]
+
+    def _check_limit_available(self) -> bool:
+        """Check if the requested limit type is available in the fetched data.
+
+        Returns:
+            True if limit data is available
+        """
+        if self.last_snapshot is None:
+            return False
+        return self.last_snapshot.get_limit(self.limit_type) is not None
+
+    def _show_unavailable_error(self) -> None:
+        """Show helpful error when requested limit type is not available."""
+        self.console.print(
+            f"[red]{self.limit_type.display_name} data not available.[/red]"
+        )
+
+        # List what IS available
+        available = []
+        if self.last_snapshot:
+            if self.last_snapshot.session:
+                session = self.last_snapshot.session
+                available.append(
+                    f"  - [cyan]session[/cyan] - 5-hour limit "
+                    f"({session.utilization_percent:.0f}% used)"
+                )
+            if self.last_snapshot.monthly:
+                monthly = self.last_snapshot.monthly
+                available.append(
+                    f"  - [cyan]monthly[/cyan] - Credits usage "
+                    f"(${monthly.used_credits_dollars:.2f} / ${monthly.monthly_limit_dollars:.2f})"
+                )
+            if self.last_snapshot.weekly:
+                weekly = self.last_snapshot.weekly
+                available.append(
+                    f"  - [cyan]weekly[/cyan] - 7-day limit "
+                    f"({weekly.utilization_percent:.0f}% used)"
+                )
+            if self.last_snapshot.weekly_sonnet:
+                sonnet = self.last_snapshot.weekly_sonnet
+                available.append(
+                    f"  - [cyan]weekly-sonnet[/cyan] - 7-day Sonnet limit "
+                    f"({sonnet.utilization_percent:.0f}% used)"
+                )
+
+        if available:
+            self.console.print("\n[dim]Available:[/dim]")
+            for item in available:
+                self.console.print(item)
+            self.console.print("\n[dim]Tip: Run 'ccburn' to auto-detect.[/dim]")
+        else:
+            self.console.print(
+                "\n[dim]No usage data available. Check Claude Code authentication.[/dim]"
+            )
+
     def run(self) -> int:
         """Run the application.
 
         Returns:
             Exit code (0 for success, 1 for error)
         """
-        # Show loading message for TUI mode
-        if not self.json_output and not self.compact and not self.once:
-            self.console.print("[dim]🔥 Loading ccburn...[/dim]", end="\r")
+        _t0 = _time.perf_counter()
+        show_loading = not self.json_output and not self.compact
 
+        _t1 = _time.perf_counter()
         if not self._initialize():
             return 1
+        _t2 = _time.perf_counter()
 
-        # Initial fetch
-        if not self._fetch_and_update():
+        # Initial fetch - show loading timer for interactive modes
+        if show_loading:
+            fetch_success = self._fetch_with_loading()
+        else:
+            fetch_success = self._fetch_and_update()
+
+        if not fetch_success:
             if self.last_snapshot is None:
-                # No cached data available - error should have been printed in _fetch_and_update
                 self.console.print("[red]Failed to fetch usage data. Check your credentials.[/red]")
                 return 1
+
+        # Check if requested limit type is available
+        if not self._check_limit_available():
+            self._show_unavailable_error()
+            return 1
+
+        _t3 = _time.perf_counter()
+        if self.debug:
+            self.console.print(f"[dim]Timing: init={_t2-_t1:.3f}s fetch={_t3-_t2:.3f}s total={_t3-_t0:.3f}s[/dim]")
 
         # Handle different output modes
         if self.json_output:
@@ -258,6 +364,7 @@ class CCBurnApp:
             self.last_snapshot.session,
             self.last_snapshot.weekly,
             self.last_snapshot.weekly_sonnet,
+            self.last_snapshot.monthly,
             budget_pace,
         )
         self.console.print(output)
@@ -417,6 +524,25 @@ class CCBurnApp:
                     "window_hours": limit_data.window_hours,
                     "status": metrics.status,
                 }
+
+        # Add monthly credits if available
+        monthly_data = self.last_snapshot.monthly
+        if monthly_data:
+            metrics = calculate_burn_metrics(monthly_data, self.snapshots)
+            days_left = int(
+                (monthly_data.resets_at - datetime.now(timezone.utc)).total_seconds() / 86400
+            )
+            output["limits"]["monthly"] = {
+                "utilization": monthly_data.utilization,
+                "budget_pace": metrics.budget_pace,
+                "resets_at": monthly_data.resets_at.isoformat(),
+                "resets_in_days": days_left,
+                "window_hours": monthly_data.window_hours,
+                "status": metrics.status,
+                "used_credits_dollars": monthly_data.used_credits_dollars,
+                "monthly_limit_dollars": monthly_data.monthly_limit_dollars,
+                "remaining_dollars": monthly_data.remaining_dollars,
+            }
 
         # Add burn rate and projection for selected limit
         limit_data = self.last_snapshot.get_limit(self.limit_type)

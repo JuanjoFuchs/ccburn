@@ -99,6 +99,15 @@ WeeklyIntervalOption = typer.Option(
     max=300,
 )
 
+MonthlyIntervalOption = typer.Option(
+    60,
+    "--interval",
+    "-i",
+    help="Refresh interval in seconds (default: 60 for monthly).",
+    min=1,
+    max=300,
+)
+
 DebugOption = typer.Option(
     False,
     "--debug",
@@ -236,6 +245,34 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
         )
 
 
+def create_monthly_command(app: typer.Typer) -> None:
+    """Create the monthly subcommand."""
+
+    @app.command()
+    def monthly(
+        json_output: bool = JsonOption,
+        once: bool = OnceOption,
+        compact: bool = CompactOption,
+        since: str | None = SinceOption,
+        interval: int = MonthlyIntervalOption,
+        debug: bool = DebugOption,
+    ) -> None:
+        """Display monthly credit usage (enterprise accounts).
+
+        Shows your monthly credit budget and current usage.
+        Resets on the 1st of each month.
+        """
+        run_app(
+            LimitType.MONTHLY,
+            json_output=json_output,
+            once=once,
+            compact=compact,
+            since=since,
+            interval=interval,
+            debug=debug,
+        )
+
+
 def create_clear_history_command(app: typer.Typer) -> None:
     """Create the clear-history command."""
 
@@ -281,4 +318,5 @@ def register_commands(app: typer.Typer) -> None:
     create_session_command(app)
     create_weekly_command(app)
     create_weekly_sonnet_command(app)
+    create_monthly_command(app)
     create_clear_history_command(app)
