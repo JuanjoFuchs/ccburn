@@ -85,9 +85,13 @@ class TestCLI:
         assert result.exit_code == 0
         assert "Clear" in result.stdout
 
+    @patch("ccburn.main.auto_detect_limit_type")
     @patch("ccburn.app.CCBurnApp")
-    def test_json_output_flag(self, mock_app_class):
+    def test_json_output_flag(self, mock_app_class, mock_auto_detect):
         """Test --json flag triggers JSON output mode."""
+        from ccburn.data.models import LimitType
+
+        mock_auto_detect.return_value = LimitType.SESSION
         mock_app = MagicMock()
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
@@ -99,9 +103,13 @@ class TestCLI:
         assert call_kwargs["json_output"] is True
         assert call_kwargs["once"] is True
 
+    @patch("ccburn.main.auto_detect_limit_type")
     @patch("ccburn.app.CCBurnApp")
-    def test_compact_output_flag(self, mock_app_class):
+    def test_compact_output_flag(self, mock_app_class, mock_auto_detect):
         """Test --compact flag triggers compact output mode."""
+        from ccburn.data.models import LimitType
+
+        mock_auto_detect.return_value = LimitType.SESSION
         mock_app = MagicMock()
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
@@ -112,9 +120,13 @@ class TestCLI:
         call_kwargs = mock_app_class.call_args.kwargs
         assert call_kwargs["compact"] is True
 
+    @patch("ccburn.main.auto_detect_limit_type")
     @patch("ccburn.app.CCBurnApp")
-    def test_interval_flag(self, mock_app_class):
+    def test_interval_flag(self, mock_app_class, mock_auto_detect):
         """Test --interval flag sets refresh interval."""
+        from ccburn.data.models import LimitType
+
+        mock_auto_detect.return_value = LimitType.SESSION
         mock_app = MagicMock()
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
@@ -125,11 +137,15 @@ class TestCLI:
         call_kwargs = mock_app_class.call_args.kwargs
         assert call_kwargs["interval"] == 60
 
+    @patch("ccburn.main.auto_detect_limit_type")
     @patch("ccburn.app.CCBurnApp")
-    def test_since_flag(self, mock_app_class):
+    def test_since_flag(self, mock_app_class, mock_auto_detect):
         """Test --since flag sets time window as sliding duration."""
         from datetime import timedelta
 
+        from ccburn.data.models import LimitType
+
+        mock_auto_detect.return_value = LimitType.SESSION
         mock_app = MagicMock()
         mock_app.run.return_value = 0
         mock_app_class.return_value = mock_app
