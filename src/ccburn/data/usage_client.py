@@ -1,6 +1,8 @@
 """Anthropic Usage API client."""
 
 import json
+import os
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -11,6 +13,44 @@ try:
 except ImportError:
     from ccburn.data.credentials import get_access_token
     from ccburn.data.models import UsageSnapshot
+
+
+def _create_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context with proper certificate handling.
+
+    PyInstaller bundles on macOS may not find the system certificate store.
+    This tries multiple certificate sources to ensure HTTPS works reliably.
+    """
+    # Try certifi first (most reliable for bundled apps)
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        pass
+
+    # Try the default context (works on most non-bundled installs)
+    ctx = ssl.create_default_context()
+
+    # If SSL_CERT_FILE is set, the default context already uses it.
+    # Otherwise, on macOS with PyInstaller, we may need to try common paths.
+    if not os.environ.get("SSL_CERT_FILE") and not os.environ.get("SSL_CERT_DIR"):
+        _macos_cert_paths = [
+            "/etc/ssl/cert.pem",
+            "/opt/homebrew/etc/openssl@3/cert.pem",
+            "/opt/homebrew/etc/openssl/cert.pem",
+            "/usr/local/etc/openssl@3/cert.pem",
+            "/usr/local/etc/openssl/cert.pem",
+        ]
+        for cert_path in _macos_cert_paths:
+            if os.path.isfile(cert_path):
+                try:
+                    ctx.load_verify_locations(cafile=cert_path)
+                    return ctx
+                except ssl.SSLError:
+                    continue
+
+    return ctx
 
 
 class UsageClientError(Exception):
@@ -49,6 +89,7 @@ class UsageClient:
             timeout: Request timeout in seconds
         """
         self.timeout = timeout
+        self._ssl_context = _create_ssl_context()
         self._last_response: dict | None = None
         self._last_error: str | None = None
 
@@ -78,7 +119,7 @@ class UsageClient:
 
         for attempt, delay in enumerate(self.RETRY_DELAYS):
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                with urllib.request.urlopen(request, timeout=self.timeout, context=self._ssl_context) as response:
                     data = json.loads(response.read())
                     self._last_response = data
                     self._last_error = None
