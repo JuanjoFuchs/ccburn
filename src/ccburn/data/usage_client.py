@@ -2,6 +2,7 @@
 
 import json
 import os
+import platform
 import ssl
 import time
 import urllib.error
@@ -29,28 +30,28 @@ def _create_ssl_context() -> ssl.SSLContext:
     except ImportError:
         pass
 
-    # Try the default context (works on most non-bundled installs)
-    ctx = ssl.create_default_context()
+    # If SSL_CERT_FILE or SSL_CERT_DIR is set, the default context uses it
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return ssl.create_default_context()
 
-    # If SSL_CERT_FILE is set, the default context already uses it.
-    # Otherwise, on macOS with PyInstaller, we may need to try common paths.
-    if not os.environ.get("SSL_CERT_FILE") and not os.environ.get("SSL_CERT_DIR"):
-        _macos_cert_paths = [
+    # On macOS with PyInstaller, the bundled ssl module can't find the system
+    # certificate store. Try well-known macOS certificate paths.
+    if platform.system() == "Darwin":
+        for cert_path in [
             "/etc/ssl/cert.pem",
             "/opt/homebrew/etc/openssl@3/cert.pem",
             "/opt/homebrew/etc/openssl/cert.pem",
             "/usr/local/etc/openssl@3/cert.pem",
             "/usr/local/etc/openssl/cert.pem",
-        ]
-        for cert_path in _macos_cert_paths:
+        ]:
             if os.path.isfile(cert_path):
                 try:
-                    ctx.load_verify_locations(cafile=cert_path)
-                    return ctx
+                    return ssl.create_default_context(cafile=cert_path)
                 except ssl.SSLError:
                     continue
 
-    return ctx
+    # Fall back to default context (works on most non-bundled installs)
+    return ssl.create_default_context()
 
 
 class UsageClientError(Exception):
