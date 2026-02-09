@@ -1,6 +1,9 @@
 """Anthropic Usage API client."""
 
 import json
+import os
+import platform
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -11,6 +14,44 @@ try:
 except ImportError:
     from ccburn.data.credentials import get_access_token
     from ccburn.data.models import UsageSnapshot
+
+
+def _create_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context with proper certificate handling.
+
+    PyInstaller bundles on macOS may not find the system certificate store.
+    This tries multiple certificate sources to ensure HTTPS works reliably.
+    """
+    # Try certifi first (most reliable for bundled apps)
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        pass
+
+    # If SSL_CERT_FILE or SSL_CERT_DIR is set, the default context uses it
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return ssl.create_default_context()
+
+    # On macOS with PyInstaller, the bundled ssl module can't find the system
+    # certificate store. Try well-known macOS certificate paths.
+    if platform.system() == "Darwin":
+        for cert_path in [
+            "/etc/ssl/cert.pem",
+            "/opt/homebrew/etc/openssl@3/cert.pem",
+            "/opt/homebrew/etc/openssl/cert.pem",
+            "/usr/local/etc/openssl@3/cert.pem",
+            "/usr/local/etc/openssl/cert.pem",
+        ]:
+            if os.path.isfile(cert_path):
+                try:
+                    return ssl.create_default_context(cafile=cert_path)
+                except ssl.SSLError:
+                    continue
+
+    # Fall back to default context (works on most non-bundled installs)
+    return ssl.create_default_context()
 
 
 class UsageClientError(Exception):
@@ -49,6 +90,7 @@ class UsageClient:
             timeout: Request timeout in seconds
         """
         self.timeout = timeout
+        self._ssl_context = _create_ssl_context()
         self._last_response: dict | None = None
         self._last_error: str | None = None
 
@@ -78,7 +120,7 @@ class UsageClient:
 
         for attempt, delay in enumerate(self.RETRY_DELAYS):
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                with urllib.request.urlopen(request, timeout=self.timeout, context=self._ssl_context) as response:
                     data = json.loads(response.read())
                     self._last_response = data
                     self._last_error = None

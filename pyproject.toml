@@ -29,6 +29,7 @@ dependencies = [
     "rich>=13.0.0",
     "plotext>=5.2.0",
     "httpx>=0.25.0",
+    "certifi",
 ]
 
 [project.optional-dependencies]
