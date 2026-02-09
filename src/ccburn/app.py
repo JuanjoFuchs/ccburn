@@ -184,8 +184,13 @@ class CCBurnApp:
             if since_dt:
                 self.snapshots = [s for s in self.snapshots if s.timestamp >= since_dt]
             else:
-                # Keep last 24 hours of data for calculations
-                cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+                # Keep snapshots within the current window
+                # For session (5h) this keeps ~5h, for monthly keeps the full month
+                limit_data = snapshot.get_limit(self.limit_type)
+                if limit_data:
+                    cutoff = limit_data.window_start
+                else:
+                    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
                 self.snapshots = [s for s in self.snapshots if s.timestamp >= cutoff]
 
             return True
