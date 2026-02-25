@@ -74,46 +74,6 @@ class TestHistoryDB:
             assert deleted == 1
             assert db.get_snapshot_count() == 0
 
-    def test_prune_old_data(self):
-        """Should prune data older than retention period."""
-        with HistoryDB(in_memory=True) as db:
-            # Create old snapshot
-            old_time = datetime.now(timezone.utc) - timedelta(days=10)
-            old_snapshot = UsageSnapshot(
-                timestamp=old_time,
-                session=LimitData(
-                    utilization=0.5,
-                    resets_at=old_time + timedelta(hours=5),
-                    limit_type=LimitType.SESSION,
-                ),
-                weekly=None,
-                weekly_sonnet=None,
-                weekly_opus=None,
-            )
-            db.save_snapshot(old_snapshot)
-
-            # Create recent snapshot
-            recent_time = datetime.now(timezone.utc)
-            recent_snapshot = UsageSnapshot(
-                timestamp=recent_time,
-                session=LimitData(
-                    utilization=0.6,
-                    resets_at=recent_time + timedelta(hours=5),
-                    limit_type=LimitType.SESSION,
-                ),
-                weekly=None,
-                weekly_sonnet=None,
-                weekly_opus=None,
-            )
-            db.save_snapshot(recent_snapshot)
-
-            assert db.get_snapshot_count() == 2
-
-            # Prune old data
-            deleted = db.prune_old_data()
-            assert deleted == 1
-            assert db.get_snapshot_count() == 1
-
     def test_file_based_database(self, temp_db):
         """Should create file-based database."""
         with HistoryDB(db_path=temp_db) as db:

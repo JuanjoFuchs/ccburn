@@ -58,7 +58,6 @@ class HistoryDB:
     );
     """
 
-    RETENTION_DAYS = 7
 
     def __init__(self, db_path: Path | str | None = None, in_memory: bool = False):
         """Initialize the history database.
@@ -389,26 +388,6 @@ class HistoryDB:
             logger.warning(f"Failed to parse snapshot row: {e}")
             return None
 
-    def prune_old_data(self) -> int:
-        """Remove data older than retention period.
-
-        Returns:
-            Number of rows deleted
-        """
-        conn = self._get_connection()
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.RETENTION_DAYS)
-
-        cursor = conn.execute(
-            "DELETE FROM usage_snapshots WHERE timestamp < ?",
-            (cutoff.isoformat(),),
-        )
-        conn.commit()
-
-        deleted = cursor.rowcount
-        if deleted > 0:
-            logger.info(f"Pruned {deleted} old snapshots")
-
-        return deleted
 
     def clear_history(self) -> int:
         """Clear all history data.

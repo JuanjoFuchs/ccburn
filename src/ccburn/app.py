@@ -109,8 +109,6 @@ class CCBurnApp:
             # Initialize history database
             try:
                 self.history = HistoryDB()
-                # Prune old data on startup
-                self.history.prune_old_data()
                 # Load existing snapshots (use current since datetime)
                 self.snapshots = self.history.get_snapshots_for_limit(
                     self.limit_type,
