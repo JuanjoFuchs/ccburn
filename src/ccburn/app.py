@@ -130,6 +130,25 @@ class CCBurnApp:
             self.console.print(f"[red]Initialization failed: {e}[/red]")
             return False
 
+    def _normalize_monthly_utilization(self) -> None:
+        """Recalculate monthly utilization using the current limit.
+
+        When the monthly limit changes, historical snapshots have utilization
+        based on the old limit. Recalculate against current limit so burn rate
+        regression and chart display are correct.
+        """
+        if self.limit_type != LimitType.MONTHLY or not self.last_snapshot:
+            return
+        current_monthly = self.last_snapshot.monthly
+        if not current_monthly or current_monthly.monthly_limit_cents <= 0:
+            return
+        current_limit = current_monthly.monthly_limit_cents
+        for s in self.snapshots:
+            if s.monthly and s.monthly.monthly_limit_cents != current_limit:
+                s.monthly.utilization = min(
+                    s.monthly.used_credits_cents / current_limit, 1.0
+                )
+
     def _fetch_and_update(self) -> bool:
         """Fetch new data and update state.
 
@@ -158,6 +177,7 @@ class CCBurnApp:
                             self.limit_type,
                             since=self._get_since_datetime(),
                         )
+                        self._normalize_monthly_utilization()
                         if self.debug:
                             self.console.print(f"[dim]  fetch: used cache (age={age:.1f}s) in {_time.perf_counter()-_ft0:.3f}s[/dim]")
                         return True
@@ -193,6 +213,7 @@ class CCBurnApp:
                     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
                 self.snapshots = [s for s in self.snapshots if s.timestamp >= cutoff]
 
+            self._normalize_monthly_utilization()
             return True
 
         except CredentialsNotFoundError as e:
