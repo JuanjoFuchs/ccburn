@@ -81,9 +81,18 @@ def format_reset_time(resets_at: datetime, now: datetime | None = None) -> str:
     # More than 24 hours - use absolute time
     # Convert to local time for display
     local_time = resets_at.astimezone()
-    day_name = local_time.strftime("%a")  # "Tue"
     # Use %I and strip leading zero (%-I is Unix-only, %#I is Windows-only)
     time_str = local_time.strftime("%I:%M %p").lstrip("0")  # "4:00 PM"
+
+    day_name = local_time.strftime("%a")  # "Sat"
+
+    if total_minutes >= 7 * 24 * 60:  # More than 7 days - include date
+        date_str = f"{local_time.month}/{local_time.day}"  # "2/28"
+        # Compact time: "7PM" when on the hour, "7:30 PM" otherwise
+        if local_time.minute == 0:
+            time_str = local_time.strftime("%I%p").lstrip("0")  # "7PM"
+        return f"Resets {day_name} {date_str} {time_str}"
+
     return f"Resets {day_name} {time_str}"
 
 
