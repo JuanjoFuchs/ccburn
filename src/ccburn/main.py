@@ -2,7 +2,6 @@
 
 
 import typer
-from rich.console import Console
 
 try:
     from .cli import (
@@ -12,11 +11,10 @@ try:
         OnceOption,
         SessionIntervalOption,
         SinceOption,
+        UntilOption,
         register_commands,
         run_app,
     )
-    from .data.models import LimitType
-    from .data.usage_client import UsageClient
 except ImportError:
     from ccburn.cli import (
         CompactOption,
@@ -25,35 +23,10 @@ except ImportError:
         OnceOption,
         SessionIntervalOption,
         SinceOption,
+        UntilOption,
         register_commands,
         run_app,
     )
-    from ccburn.data.models import LimitType
-    from ccburn.data.usage_client import UsageClient
-
-
-def auto_detect_limit_type() -> LimitType | None:
-    """Auto-detect which limit type to use based on available data.
-
-    Priority: session -> monthly -> weekly
-
-    Returns:
-        Best available LimitType, or None if no data available.
-    """
-    try:
-        client = UsageClient()
-        snapshot = client.fetch_usage()
-
-        if snapshot.session is not None:
-            return LimitType.SESSION
-        if snapshot.monthly is not None:
-            return LimitType.MONTHLY
-        if snapshot.weekly is not None:
-            return LimitType.WEEKLY
-
-        return None
-    except Exception:
-        return None
 
 
 app = typer.Typer(
@@ -81,6 +54,7 @@ def main(
     once: bool = OnceOption,
     compact: bool = CompactOption,
     since: str | None = SinceOption,
+    until: str = UntilOption,
     interval: int = SessionIntervalOption,
     debug: bool = DebugOption,
 ) -> None:
@@ -110,22 +84,13 @@ def main(
 
     # If no subcommand, auto-detect best available limit type
     if ctx.invoked_subcommand is None:
-        console = Console()
-
-        # Auto-detect which data is available
-        limit_type = auto_detect_limit_type()
-
-        if limit_type is None:
-            console.print("[red]No usage data available.[/red]")
-            console.print("\n[dim]Check that Claude Code is running and authenticated.[/dim]")
-            raise typer.Exit(1)
-
         run_app(
-            limit_type,
+            None,  # Auto-detect from fetched data
             json_output=json_output,
             once=once,
             compact=compact,
             since=since,
+            until=until,
             interval=interval,
             debug=debug,
         )

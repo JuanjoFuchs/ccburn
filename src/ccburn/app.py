@@ -34,9 +34,10 @@ class CCBurnApp:
 
     def __init__(
         self,
-        limit_type: LimitType = LimitType.SESSION,
+        limit_type: LimitType | None = LimitType.SESSION,
         interval: int = 5,
         since_duration: timedelta | None = None,
+        until: str = "now",
         json_output: bool = False,
         once: bool = False,
         compact: bool = False,
@@ -48,6 +49,7 @@ class CCBurnApp:
             limit_type: Which limit to display
             interval: Refresh interval in seconds
             since_duration: Time window duration for zoom view (sliding window)
+            until: Display end: 'now' or 'end' (window end)
             json_output: Output JSON instead of TUI
             once: Print once and exit
             compact: Single-line output for status bars
@@ -56,6 +58,7 @@ class CCBurnApp:
         self.limit_type = limit_type
         self.interval = interval
         self.since_duration = since_duration
+        self.until = until
         self.json_output = json_output
         self.once = once
         self.compact = compact
@@ -110,10 +113,16 @@ class CCBurnApp:
             try:
                 self.history = HistoryDB()
                 # Load existing snapshots (use current since datetime)
-                self.snapshots = self.history.get_snapshots_for_limit(
-                    self.limit_type,
-                    since=self._get_since_datetime(),
-                )
+                if self.limit_type is not None:
+                    self.snapshots = self.history.get_snapshots_for_limit(
+                        self.limit_type,
+                        since=self._get_since_datetime(),
+                    )
+                else:
+                    # Auto-detect mode: load all snapshots, filter after detection
+                    self.snapshots = self.history.get_snapshots(
+                        since=self._get_since_datetime(),
+                    )
             except Exception as e:
                 # Fall back to in-memory if SQLite fails
                 self.console.print(
@@ -338,6 +347,19 @@ class CCBurnApp:
                 self.console.print("[red]Failed to fetch usage data. Check your credentials.[/red]")
                 return 1
 
+        # Auto-detect limit type from fetched data if not specified
+        if self.limit_type is None and self.last_snapshot:
+            if self.last_snapshot.session is not None:
+                self.limit_type = LimitType.SESSION
+            elif self.last_snapshot.monthly is not None:
+                self.limit_type = LimitType.MONTHLY
+            elif self.last_snapshot.weekly is not None:
+                self.limit_type = LimitType.WEEKLY
+            else:
+                self.console.print("[red]No usage data available.[/red]")
+                self.console.print("\n[dim]Check that Claude Code is running and authenticated.[/dim]")
+                return 1
+
         # Check if requested limit type is available
         if not self._check_limit_available():
             self._show_unavailable_error()
@@ -413,6 +435,7 @@ class CCBurnApp:
             self.snapshots,
             error=self.last_error,
             since_duration=self.since_duration,
+            until=self.until,
         )
         self.console.print(layout)
 
@@ -444,6 +467,7 @@ class CCBurnApp:
                 self.snapshots,
                 error=self.last_error,
                 since_duration=self.since_duration,
+                until=self.until,
             )
 
             # Set initial window title
@@ -500,6 +524,7 @@ class CCBurnApp:
                         error=self.last_error,
                         stale_since=stale_since,
                         since_duration=self.since_duration,
+                        until=self.until,
                     )
                     live.update(updated_layout)
                     live.refresh()  # Manual refresh since auto_refresh=False
