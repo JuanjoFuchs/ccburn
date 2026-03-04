@@ -82,47 +82,55 @@ ruff check --fix src/     # Auto-fix
 
 ## Commit Convention
 
-Uses **gitmoji** for commit messages:
+Uses **gitmoji** for commit messages.
 
-```bash
-gitmoji -c --title="Add feature X" --message="Description"
-```
 
-Common emojis:
+### Common Emojis
+
 - 🎉 `:tada:` - Initial commit
 - ✨ `:sparkles:` - New feature
 - 🐛 `:bug:` - Bug fix
 - 📝 `:memo:` - Documentation
 - ♻️ `:recycle:` - Refactor
 - 📦 `:package:` - Packaging/dependencies
+- 🔖 `:bookmark:` - Version bump
+
+## Release Procedure
+
+### Version Numbering
+
+Follow semantic versioning (MAJOR.MINOR.PATCH):
+- **PATCH** (0.2.x): Bug fixes only
+- **MINOR** (0.x.0): New features (backwards compatible)
+- **MAJOR** (x.0.0): Breaking changes
+
+### Release Steps
+
+1. **Update versions** in both files:
+   - `pyproject.toml` - Python package version
+   - `npm/package.json` - npm package version
+
+2. **Stage and commit** version bump:
+   ```bash
+   git add pyproject.toml npm/package.json
+   # Use gitmoji with :bookmark: emoji
+   ```
+
+3. **Tag and push**:
+   ```bash
+   git tag v0.x.x
+   git push && git push --tags
+   ```
+
+4. **CI/CD** (automated on tag push):
+   - GitHub Actions builds releases
+   - PyPI publish triggered
+   - WinGet manifest updated
 
 ## Specs
 
 Specifications live in `specs/`:
 
-| Spec | Status | Description |
-|------|--------|-------------|
-| `001-v1-one-shot.md` | ✅ Complete | Initial v1.0 implementation |
-| `002-packaging.md` | 📋 Ready | PyPI, WinGet, CI/CD workflows |
-
-## Current State (v0.1.0)
-
-### Implemented
-- Full TUI with burn-up charts (plotext)
-- Session, Weekly, Weekly Sonnet limits
-- Compact output mode for status bars
-- JSON output mode
-- SQLite history with race condition handling
-- Dynamic Y-axis for zoomed views (`--since`)
-- "Now" indicator line on chart
-- Dynamic terminal window title with pace emoji
-- Pace indicators (🧊/🔥/🚨)
-
-### Not Yet Implemented
-- CI/CD workflows (see spec 002)
-- PyPI publishing
-- WinGet distribution
-- Windows executable (PyInstaller)
 
 ## Key Files to Know
 
