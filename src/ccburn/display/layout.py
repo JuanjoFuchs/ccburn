@@ -75,6 +75,7 @@ class BurnupLayout:
         error: str | None = None,
         stale_since: datetime | None = None,
         since_duration: timedelta | None = None,
+        until: str = "now",
     ) -> Layout:
         """Update the layout with new data.
 
@@ -85,6 +86,7 @@ class BurnupLayout:
             error: Error message to display (if any)
             stale_since: When data became stale (if using cached data)
             since_duration: Zoom view duration (sliding window)
+            until: Display end: 'now' or 'end' (window end)
 
         Returns:
             Updated Rich Layout
@@ -103,7 +105,7 @@ class BurnupLayout:
         if self.should_use_compact_mode():
             return self._create_compact_layout(limit_type, width, height)
 
-        return self._create_full_layout(limit_type, width, height, since_duration)
+        return self._create_full_layout(limit_type, width, height, since_duration, until)
 
     def _create_full_layout(
         self,
@@ -111,6 +113,7 @@ class BurnupLayout:
         width: int,
         height: int,
         since_duration: timedelta | None = None,
+        until: str = "now",
     ) -> Layout:
         """Create full TUI layout with header, gauges, and chart.
 
@@ -119,6 +122,7 @@ class BurnupLayout:
             width: Terminal width
             height: Terminal height
             since_duration: Zoom view duration (sliding window)
+            until: Display end: 'now' or 'end' (window end)
 
         Returns:
             Rich Layout
@@ -162,6 +166,7 @@ class BurnupLayout:
             self._last_limit_data,
             self._last_snapshots,
             since_duration=since_duration,
+            until=until,
             explicit_height=chart_height,
             burn_metrics=self._last_metrics,
         )

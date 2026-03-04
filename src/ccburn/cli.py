@@ -81,6 +81,13 @@ SinceOption = typer.Option(
     help="Time window to display (e.g., '2h', '24h', '7d'). Default: full window.",
 )
 
+UntilOption = typer.Option(
+    "now",
+    "--until",
+    "-u",
+    help="Display end: 'now' (default), 'end' (window end), or 'depleted' (projected depletion).",
+)
+
 SessionIntervalOption = typer.Option(
     5,
     "--interval",
@@ -117,11 +124,12 @@ DebugOption = typer.Option(
 
 
 def run_app(
-    limit_type: LimitType,
+    limit_type: LimitType | None,
     json_output: bool = False,
     once: bool = False,
     compact: bool = False,
     since: str | None = None,
+    until: str = "now",
     interval: int = 5,
     debug: bool = False,
 ) -> None:
@@ -133,6 +141,7 @@ def run_app(
         once: Print once and exit
         compact: Single-line output
         since: Time window string (e.g., '2h', '24h')
+        until: Display end: 'now' or 'end'
         interval: Refresh interval in seconds
         debug: Show debug info
     """
@@ -140,6 +149,16 @@ def run_app(
         from .app import CCBurnApp
     except ImportError:
         from ccburn.app import CCBurnApp
+
+    # Validate --until requires --since
+    if until != "now" and not since:
+        typer.echo("Error: --until requires --since to be set.", err=True)
+        raise typer.Exit(1)
+
+    # Validate --until value
+    if until not in ("now", "end", "depleted"):
+        typer.echo(f"Error: --until must be 'now', 'end', or 'depleted', got '{until}'.", err=True)
+        raise typer.Exit(1)
 
     # Parse since duration if provided
     since_duration = None
@@ -154,6 +173,7 @@ def run_app(
         limit_type=limit_type,
         interval=interval,
         since_duration=since_duration,
+        until=until,
         json_output=json_output,
         once=once,
         compact=compact,
@@ -173,6 +193,7 @@ def create_session_command(app: typer.Typer) -> None:
         once: bool = OnceOption,
         compact: bool = CompactOption,
         since: str | None = SinceOption,
+        until: str = UntilOption,
         interval: int = SessionIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -186,6 +207,7 @@ def create_session_command(app: typer.Typer) -> None:
             once=once,
             compact=compact,
             since=since,
+            until=until,
             interval=interval,
             debug=debug,
         )
@@ -200,6 +222,7 @@ def create_weekly_command(app: typer.Typer) -> None:
         once: bool = OnceOption,
         compact: bool = CompactOption,
         since: str | None = SinceOption,
+        until: str = UntilOption,
         interval: int = WeeklyIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -213,6 +236,7 @@ def create_weekly_command(app: typer.Typer) -> None:
             once=once,
             compact=compact,
             since=since,
+            until=until,
             interval=interval,
             debug=debug,
         )
@@ -227,6 +251,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
         once: bool = OnceOption,
         compact: bool = CompactOption,
         since: str | None = SinceOption,
+        until: str = UntilOption,
         interval: int = WeeklyIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -240,6 +265,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
             once=once,
             compact=compact,
             since=since,
+            until=until,
             interval=interval,
             debug=debug,
         )
@@ -254,6 +280,7 @@ def create_monthly_command(app: typer.Typer) -> None:
         once: bool = OnceOption,
         compact: bool = CompactOption,
         since: str | None = SinceOption,
+        until: str = UntilOption,
         interval: int = MonthlyIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
@@ -268,6 +295,7 @@ def create_monthly_command(app: typer.Typer) -> None:
             once=once,
             compact=compact,
             since=since,
+            until=until,
             interval=interval,
             debug=debug,
         )

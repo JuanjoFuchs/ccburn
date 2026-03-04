@@ -24,6 +24,7 @@ class BurnupChart(JupyterMixin):
         limit_data: LimitData | MonthlyLimitData | None,
         snapshots: list[UsageSnapshot],
         since_duration: timedelta | None = None,
+        until: str = "now",
         explicit_height: int | None = None,
         burn_metrics: BurnMetrics | None = None,
     ):
@@ -33,12 +34,14 @@ class BurnupChart(JupyterMixin):
             limit_data: Current limit data (for window boundaries)
             snapshots: Historical snapshots to plot
             since_duration: Duration for zoom view (sliding window, e.g., last 1h)
+            until: Display end when using since: 'now' or 'end' (window end)
             explicit_height: Override chart height
             burn_metrics: Burn rate metrics for projection line
         """
         self.limit_data = limit_data
         self.snapshots = snapshots
         self.since_duration = since_duration
+        self.until = until
         self.explicit_height = explicit_height
         self.burn_metrics = burn_metrics
         self.decoder = AnsiDecoder()
@@ -93,10 +96,26 @@ class BurnupChart(JupyterMixin):
         display_start = original_window_start
         display_end = window_end
         if self.since_duration:
-            # Sliding window: always show the last N duration (e.g., last 1h)
-            # Both start and end move forward with time
             display_start = max(original_window_start, now - self.since_duration)
-            display_end = now
+            if self.until == "end":
+                # Zoom: crop left edge but keep window end (projections visible)
+                display_end = window_end
+            elif self.until == "depleted":
+                # Zoom to projected depletion time, fallback to window end
+                display_end = window_end
+                if self.burn_metrics and self.burn_metrics.percent_per_hour > 0:
+                    current_pct = self.limit_data.utilization * 100
+                    if current_pct < 100.0:
+                        hours_to_100 = (100.0 - current_pct) / self.burn_metrics.percent_per_hour
+                        depletion_time = now + timedelta(hours=hours_to_100)
+                        if depletion_time < window_end:
+                            # Add 5% padding so the depleted line isn't at the edge
+                            visible_hours = (depletion_time - display_start).total_seconds() / 3600
+                            padding = timedelta(hours=visible_hours * 0.05)
+                            display_end = min(depletion_time + padding, window_end)
+            else:
+                # Sliding window: both edges move forward with time
+                display_end = now
 
         # Filter snapshots to display window
         relevant_snapshots = [
@@ -165,9 +184,10 @@ class BurnupChart(JupyterMixin):
                     label="Usage",
                 )
 
-        # Plot projection line if we have positive burn rate (not on zoomed views)
+        # Plot projection line if we have positive burn rate and display extends past now
         hits_100_hours = None  # Track when projection hits 100% for vertical marker
-        if self.burn_metrics and self.burn_metrics.percent_per_hour > 0 and not self.since_duration:
+        show_projection = display_end > now
+        if self.burn_metrics and self.burn_metrics.percent_per_hour > 0 and show_projection:
             current_pct = self.limit_data.utilization * 100
             now_hours = to_hours(now)
 
@@ -223,10 +243,10 @@ class BurnupChart(JupyterMixin):
 
         plt.ylim(y_min, y_max)
 
-        # Add "now" vertical line when showing full window (not zoomed)
+        # Add "now" vertical line when display extends past now
         # Use dotted effect by plotting points at intervals
         now_hours_for_tick = None
-        if not self.since_duration:
+        if show_projection:
             now_hours = to_hours(now)
             if 0 < now_hours < display_hours:
                 # Create dotted vertical line with points using braille marker to match other lines
