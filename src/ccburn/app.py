@@ -344,8 +344,33 @@ class CCBurnApp:
 
         if not fetch_success:
             if self.last_snapshot is None:
-                self.console.print("[red]Failed to fetch usage data. Check your credentials.[/red]")
-                return 1
+                # API failed — try loading from DB cache
+                if self.history:
+                    cached = self.history.get_latest_snapshot()
+                    if cached:
+                        self.last_snapshot = cached
+                        self.last_fetch_time = cached.timestamp
+                        self.snapshots = self.history.get_snapshots_for_limit(
+                            self.limit_type,
+                            since=self._get_since_datetime(),
+                        ) if self.limit_type else self.history.get_snapshots(
+                            since=self._get_since_datetime(),
+                        )
+                        self._normalize_monthly_utilization()
+
+                # No data anywhere — exit with error
+                if self.last_snapshot is None:
+                    self.console.print("[red]Failed to fetch usage data.[/red]")
+                    if self.last_error and "429" in self.last_error:
+                        self.console.print(
+                            "\n[dim]Rate limited by the API. "
+                            "Try again in a few seconds.[/dim]"
+                        )
+                    else:
+                        self.console.print(
+                            "\n[dim]Check that Claude Code is running and authenticated.[/dim]"
+                        )
+                    return 1
 
         # Auto-detect limit type from fetched data if not specified
         if self.limit_type is None and self.last_snapshot:
@@ -428,12 +453,18 @@ class CCBurnApp:
 
         limit_data = self.last_snapshot.get_limit(self.limit_type)
 
+        # Show staleness indicator if using cached data
+        stale_since = None
+        if self.last_error and self.last_fetch_time:
+            stale_since = self.last_fetch_time
+
         # Create and print the layout
         layout = self.layout.update(
             self.limit_type,
             limit_data,
             self.snapshots,
             error=self.last_error,
+            stale_since=stale_since,
             since_duration=self.since_duration,
             until=self.until,
         )

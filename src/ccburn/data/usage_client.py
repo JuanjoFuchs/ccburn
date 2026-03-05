@@ -139,8 +139,8 @@ class UsageClient:
                         "Access forbidden. You may not have permission to access usage data.",
                         status_code=e.code,
                     ) from e
-                elif e.code >= 500:
-                    # Server error - retry
+                elif e.code == 429 or e.code >= 500:
+                    # Rate limited or server error - retry
                     last_error = NetworkError(f"Server error: {e.code} {e.reason}")
                 else:
                     raise APIError(f"API error: {e.code} {e.reason}", status_code=e.code) from e
