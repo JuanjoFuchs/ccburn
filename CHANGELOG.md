@@ -2,6 +2,13 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [0.5.1] - 2026-03-05
+
+### Fixed
+
+- **Graceful fallback on API 429 rate limit**: when the `/api/oauth/usage` endpoint returns persistent 429 errors, ccburn now falls back to the most recent snapshot from the SQLite history DB instead of exiting with an error. A yellow staleness banner indicates when cached data is being used. Workaround for upstream issue ([#30930](https://github.com/anthropics/claude-code/issues/30930), [#31055](https://github.com/anthropics/claude-code/issues/31055), [#31021](https://github.com/anthropics/claude-code/issues/31021)).
+- **429 retry with backoff**: HTTP 429 responses are now retried with exponential backoff (previously only 5xx errors were retried).
+
 ## [0.5.0] - 2026-03-04
 
 ### Added
