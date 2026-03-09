@@ -78,7 +78,7 @@ SinceOption = typer.Option(
     None,
     "--since",
     "-s",
-    help="Time window to display (e.g., '2h', '24h', '7d'). Default: full window.",
+    help="Time window to display (e.g., '2h', '24h', '7d', 'start'). Default: full window.",
 )
 
 UntilOption = typer.Option(
@@ -161,8 +161,9 @@ def run_app(
         raise typer.Exit(1)
 
     # Parse since duration if provided
+    # 'start' means beginning of the window (same as no --since, but allows --until)
     since_duration = None
-    if since:
+    if since and since.lower() != "start":
         try:
             since_duration = parse_duration(since)
         except typer.BadParameter as e:

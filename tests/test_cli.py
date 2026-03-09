@@ -140,3 +140,49 @@ class TestCLI:
         mock_app_class.assert_called_once()
         call_kwargs = mock_app_class.call_args.kwargs
         assert call_kwargs["since_duration"] == timedelta(hours=2)  # timedelta for sliding window
+
+    @patch("ccburn.app.CCBurnApp")
+    def test_since_start(self, mock_app_class):
+        """Test --since start means full window (since_duration=None)."""
+        mock_app = MagicMock()
+        mock_app.run.return_value = 0
+        mock_app_class.return_value = mock_app
+
+        _result = runner.invoke(app, ["--since", "start", "--once"])
+
+        mock_app_class.assert_called_once()
+        call_kwargs = mock_app_class.call_args.kwargs
+        assert call_kwargs["since_duration"] is None
+
+    @patch("ccburn.app.CCBurnApp")
+    def test_since_start_case_insensitive(self, mock_app_class):
+        """Test --since Start and --since START also work."""
+        mock_app = MagicMock()
+        mock_app.run.return_value = 0
+        mock_app_class.return_value = mock_app
+
+        _result = runner.invoke(app, ["--since", "Start", "--once"])
+
+        call_kwargs = mock_app_class.call_args.kwargs
+        assert call_kwargs["since_duration"] is None
+
+    @patch("ccburn.app.CCBurnApp")
+    def test_since_start_until_depleted(self, mock_app_class):
+        """Test --since start --until depleted passes validation."""
+        mock_app = MagicMock()
+        mock_app.run.return_value = 0
+        mock_app_class.return_value = mock_app
+
+        _result = runner.invoke(app, ["--since", "start", "--until", "depleted", "--once"])
+
+        mock_app_class.assert_called_once()
+        call_kwargs = mock_app_class.call_args.kwargs
+        assert call_kwargs["since_duration"] is None
+        assert call_kwargs["until"] == "depleted"
+
+    def test_until_without_since_errors(self):
+        """Test --until without --since produces an error."""
+        result = runner.invoke(app, ["--until", "depleted", "--once"])
+        assert result.exit_code == 1
+        # Error may be in stdout or output depending on typer version
+        assert "--until requires --since" in (result.stdout + (result.output or ""))

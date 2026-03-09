@@ -46,6 +46,41 @@ class BurnupChart(JupyterMixin):
         self.burn_metrics = burn_metrics
         self.decoder = AnsiDecoder()
 
+    def _compute_display_window(
+        self,
+        window_start: datetime,
+        window_end: datetime,
+        now: datetime,
+    ) -> tuple[datetime, datetime]:
+        """Compute the visible display window for the chart.
+
+        Returns:
+            (display_start, display_end) tuple
+        """
+        display_start = window_start
+        display_end = window_end
+
+        if self.since_duration:
+            display_start = max(window_start, now - self.since_duration)
+
+        if self.since_duration and self.until == "now":
+            # Sliding window: both edges move forward with time
+            display_end = now
+        elif self.until == "depleted":
+            # Zoom to projected depletion time, fallback to window end
+            if self.burn_metrics and self.burn_metrics.percent_per_hour > 0:
+                current_pct = self.limit_data.utilization * 100
+                if current_pct < 100.0:
+                    hours_to_100 = (100.0 - current_pct) / self.burn_metrics.percent_per_hour
+                    depletion_time = now + timedelta(hours=hours_to_100)
+                    if depletion_time < window_end:
+                        # Add 5% padding so the depleted line isn't at the edge
+                        visible_hours = (depletion_time - display_start).total_seconds() / 3600
+                        padding = timedelta(hours=visible_hours * 0.05)
+                        display_end = min(depletion_time + padding, window_end)
+
+        return display_start, display_end
+
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> Generator[RenderableType, None, None]:
@@ -92,30 +127,9 @@ class BurnupChart(JupyterMixin):
         window_end = self.limit_data.resets_at
         now = datetime.now(timezone.utc)
 
-        # Display window (may be zoomed with --since as a sliding window)
-        display_start = original_window_start
-        display_end = window_end
-        if self.since_duration:
-            display_start = max(original_window_start, now - self.since_duration)
-            if self.until == "end":
-                # Zoom: crop left edge but keep window end (projections visible)
-                display_end = window_end
-            elif self.until == "depleted":
-                # Zoom to projected depletion time, fallback to window end
-                display_end = window_end
-                if self.burn_metrics and self.burn_metrics.percent_per_hour > 0:
-                    current_pct = self.limit_data.utilization * 100
-                    if current_pct < 100.0:
-                        hours_to_100 = (100.0 - current_pct) / self.burn_metrics.percent_per_hour
-                        depletion_time = now + timedelta(hours=hours_to_100)
-                        if depletion_time < window_end:
-                            # Add 5% padding so the depleted line isn't at the edge
-                            visible_hours = (depletion_time - display_start).total_seconds() / 3600
-                            padding = timedelta(hours=visible_hours * 0.05)
-                            display_end = min(depletion_time + padding, window_end)
-            else:
-                # Sliding window: both edges move forward with time
-                display_end = now
+        display_start, display_end = self._compute_display_window(
+            original_window_start, window_end, now
+        )
 
         # Filter snapshots to display window
         relevant_snapshots = [
