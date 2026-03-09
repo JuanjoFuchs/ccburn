@@ -2,6 +2,23 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [0.6.0] - 2026-03-09
+
+### Added
+
+- **Web API fallback for OAuth 429**: when the OAuth usage endpoint returns persistent 429 errors, ccburn now decrypts Claude Desktop's Chromium cookies and calls the `claude.ai` web API via `curl`, which uses a separate rate limit bucket unaffected by the OAuth rate limiting. Strategy chain: OAuth API → Web API (cookies + curl) → DB cache.
+  - **Windows**: DPAPI key decryption + AES-256-GCM cookie decryption. Briefly kills the Chromium network service subprocess to copy the locked Cookies DB (auto-respawns in ~10ms).
+  - **macOS**: Keychain password + PBKDF2 key derivation + AES-128-CBC decryption. Reads past advisory file locks via `sqlite3` CLI.
+- **`--since start` modifier**: use `--since start --until depleted` to show the full window through projected depletion.
+
+### Fixed
+
+- **`--until depleted` with `--since start`**: the depleted display window logic was incorrectly gated on `since_duration` being set; it now works independently.
+
+### Removed
+
+- **Token refresh on 429**: removed the OAuth token refresh workaround added in development — it races with Claude Code for one-time-use refresh tokens and is fundamentally incompatible with concurrent usage ([#24317](https://github.com/anthropics/claude-code/issues/24317)).
+
 ## [0.5.1] - 2026-03-05
 
 ### Fixed
