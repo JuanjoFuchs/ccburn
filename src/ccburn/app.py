@@ -80,6 +80,7 @@ class CCBurnApp:
         self.last_snapshot: UsageSnapshot | None = None
         self.last_fetch_time: datetime | None = None
         self.last_error: str | None = None
+        self._using_stale_data: bool = False
         self.snapshots: list[UsageSnapshot] = []
 
     def _get_since_datetime(self) -> datetime | None:
@@ -198,6 +199,7 @@ class CCBurnApp:
             self.last_snapshot = snapshot
             self.last_fetch_time = datetime.now(timezone.utc)
             self.last_error = None
+            self._using_stale_data = False
 
             # Save to history
             if self.history:
@@ -350,6 +352,8 @@ class CCBurnApp:
                     if cached:
                         self.last_snapshot = cached
                         self.last_fetch_time = cached.timestamp
+                        self.last_error = None
+                        self._using_stale_data = True
                         self.snapshots = self.history.get_snapshots_for_limit(
                             self.limit_type,
                             since=self._get_since_datetime(),
@@ -455,7 +459,7 @@ class CCBurnApp:
 
         # Show staleness indicator if using cached data
         stale_since = None
-        if self.last_error and self.last_fetch_time:
+        if (self.last_error or self._using_stale_data) and self.last_fetch_time:
             stale_since = self.last_fetch_time
 
         # Create and print the layout
@@ -537,15 +541,16 @@ class CCBurnApp:
                 # Fetch new data
                 data_changed = self._fetch_and_update()
 
-                # Only re-render layout when data actually changes
-                # This avoids expensive chart re-rendering
-                if data_changed:
+                # Re-render on data change OR when showing stale data
+                # (stale banner needs time updates even without new data)
+                should_render = data_changed or self._using_stale_data or self.last_error
+                if should_render:
                     limit_data = None
                     if self.last_snapshot:
                         limit_data = self.last_snapshot.get_limit(self.limit_type)
 
                     stale_since = None
-                    if self.last_error and self.last_fetch_time:
+                    if (self.last_error or self._using_stale_data) and self.last_fetch_time:
                         stale_since = self.last_fetch_time
 
                     updated_layout = self.layout.update(
