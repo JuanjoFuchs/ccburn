@@ -1,6 +1,6 @@
 {
   "name": "ccburn",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Terminal-based Claude Code usage limit visualizer with real-time burn-up charts",
   "author": "JuanjoFuchs",
   "license": "MIT",
