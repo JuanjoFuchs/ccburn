@@ -126,7 +126,7 @@ def create_header(
     # Dynamic pace emoji: 🧊 (behind), 🔥 (on pace), 🚨 (ahead)
     if limit_data:
         pace = calculate_budget_pace(limit_data.resets_at, limit_data.window_hours)
-        pace_emoji = get_pace_emoji(limit_data.utilization, pace)
+        pace_emoji = get_pace_emoji(limit_data.effective_utilization, pace)
     else:
         pace_emoji = "🔥"  # Default while loading
 
@@ -179,12 +179,12 @@ def create_gauge_section(
         )
         return table
 
-    utilization_percent = limit_data.utilization * 100
+    utilization_percent = limit_data.effective_utilization * 100
     pace_percent = budget_pace * 100
 
     # Usage bar - color by threshold AND burn rate
     # complete_style = filled portion (bright), style = unfilled portion (dim)
-    usage_color = get_utilization_color(limit_data.utilization, budget_pace)
+    usage_color = get_utilization_color(limit_data.effective_utilization, budget_pace)
     usage_bar = ProgressBar(
         total=100,
         completed=utilization_percent,
@@ -267,25 +267,29 @@ def create_compact_output(
         minutes_left = int((session.resets_at - now).total_seconds() / 60)
         time_str = f"({format_duration(minutes_left)})" if minutes_left > 0 else ""
         pace = calculate_budget_pace(session.resets_at, session.window_hours)
-        emoji = get_pace_emoji(session.utilization, pace)
-        parts.append(f"Session: {emoji} {session.utilization*100:.0f}% {time_str}".strip())
+        util = session.effective_utilization
+        emoji = get_pace_emoji(util, pace)
+        parts.append(f"Session: {emoji} {util*100:.0f}% {time_str}".strip())
 
     # Weekly
     if weekly:
+        util = weekly.effective_utilization
         pace = calculate_budget_pace(weekly.resets_at, weekly.window_hours)
-        emoji = get_pace_emoji(weekly.utilization, pace)
-        parts.append(f"Weekly: {emoji} {weekly.utilization*100:.0f}%")
+        emoji = get_pace_emoji(util, pace)
+        parts.append(f"Weekly: {emoji} {util*100:.0f}%")
 
     # Sonnet
     if weekly_sonnet:
+        util = weekly_sonnet.effective_utilization
         pace = calculate_budget_pace(weekly_sonnet.resets_at, weekly_sonnet.window_hours)
-        emoji = get_pace_emoji(weekly_sonnet.utilization, pace)
-        parts.append(f"Sonnet: {emoji} {weekly_sonnet.utilization*100:.0f}%")
+        emoji = get_pace_emoji(util, pace)
+        parts.append(f"Sonnet: {emoji} {util*100:.0f}%")
 
     # Monthly credits
     if monthly:
+        util = monthly.effective_utilization
         pace = calculate_budget_pace(monthly.resets_at, monthly.window_hours)
-        emoji = get_pace_emoji(monthly.utilization, pace)
+        emoji = get_pace_emoji(util, pace)
         dollars = format_credits(monthly.used_credits_dollars)
         parts.append(f"Monthly: {emoji} {dollars}")
 
@@ -317,14 +321,14 @@ def create_compact_output_with_indicator(
     """
     from ..utils.formatting import format_duration, get_status_indicator
 
-    # Determine which limit is most critical
+    # Determine which limit is most critical (use effective to handle expired windows)
     max_util = 0.0
     if session:
-        max_util = max(max_util, session.utilization)
+        max_util = max(max_util, session.effective_utilization)
     if weekly:
-        max_util = max(max_util, weekly.utilization)
+        max_util = max(max_util, weekly.effective_utilization)
     if weekly_sonnet:
-        max_util = max(max_util, weekly_sonnet.utilization)
+        max_util = max(max_util, weekly_sonnet.effective_utilization)
 
     indicator = get_status_indicator(max_util, budget_pace_session)
 
@@ -337,19 +341,19 @@ def create_compact_output_with_indicator(
         now = datetime.now(timezone.utc)
         minutes_left = int((session.resets_at - now).total_seconds() / 60)
         time_str = f"({format_duration(minutes_left)})" if minutes_left > 0 else ""
-        parts.append(f"{session.utilization*100:.0f}% {time_str}".strip())
+        parts.append(f"{session.effective_utilization*100:.0f}% {time_str}".strip())
     else:
         parts.append("--")
 
     # Weekly
     if weekly:
-        parts.append(f"{weekly.utilization*100:.0f}%")
+        parts.append(f"{weekly.effective_utilization*100:.0f}%")
     else:
         parts.append("--")
 
     # Sonnet
     if weekly_sonnet:
-        parts.append(f"{weekly_sonnet.utilization*100:.0f}%")
+        parts.append(f"{weekly_sonnet.effective_utilization*100:.0f}%")
     else:
         parts.append("--")
 
