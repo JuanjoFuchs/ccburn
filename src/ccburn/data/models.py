@@ -64,6 +64,24 @@ class LimitData:
         return self.resets_at - timedelta(hours=self.window_hours)
 
     @property
+    def is_expired(self) -> bool:
+        """Check if this limit window has expired (resets_at is in the past).
+
+        When the API returns stale data during a window rollover,
+        resets_at will be in the past. Consumers should treat utilization
+        as 0 in this case.
+        """
+        now = datetime.now(timezone.utc)
+        if self.resets_at.tzinfo is None:
+            return now.replace(tzinfo=None) > self.resets_at
+        return now > self.resets_at
+
+    @property
+    def effective_utilization(self) -> float:
+        """Get utilization, returning 0 if the window has expired."""
+        return 0.0 if self.is_expired else self.utilization
+
+    @property
     def utilization_percent(self) -> float:
         """Get utilization as a percentage (0-100)."""
         return self.utilization * 100
@@ -107,6 +125,19 @@ class MonthlyLimitData:
         """1st of current month at 00:00 UTC."""
         now = datetime.now(timezone.utc)
         return datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if this limit window has expired (resets_at is in the past)."""
+        now = datetime.now(timezone.utc)
+        if self.resets_at.tzinfo is None:
+            return now.replace(tzinfo=None) > self.resets_at
+        return now > self.resets_at
+
+    @property
+    def effective_utilization(self) -> float:
+        """Get utilization, returning 0 if the window has expired."""
+        return 0.0 if self.is_expired else self.utilization
 
     @property
     def utilization_percent(self) -> float:

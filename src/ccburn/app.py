@@ -642,14 +642,18 @@ class CCBurnApp:
                 )
                 hours_left = minutes_left / 60
 
+                # Use effective_utilization to return 0 when window has expired
+                # (API may return stale data during window rollover)
+                utilization = limit_data.effective_utilization
+
                 output["limits"][lt.value] = {
-                    "utilization": limit_data.utilization,
+                    "utilization": utilization,
                     "budget_pace": metrics.budget_pace,
                     "resets_at": limit_data.resets_at.isoformat(),
                     "resets_in_minutes": minutes_left if lt == LimitType.SESSION else None,
                     "resets_in_hours": hours_left if lt != LimitType.SESSION else None,
                     "window_hours": limit_data.window_hours,
-                    "status": metrics.status,
+                    "status": "behind_pace" if limit_data.is_expired else metrics.status,
                 }
 
         # Add monthly credits if available
@@ -660,12 +664,12 @@ class CCBurnApp:
                 (monthly_data.resets_at - datetime.now(timezone.utc)).total_seconds() / 86400
             )
             output["limits"]["monthly"] = {
-                "utilization": monthly_data.utilization,
+                "utilization": monthly_data.effective_utilization,
                 "budget_pace": metrics.budget_pace,
                 "resets_at": monthly_data.resets_at.isoformat(),
                 "resets_in_days": days_left,
                 "window_hours": monthly_data.window_hours,
-                "status": metrics.status,
+                "status": "behind_pace" if monthly_data.is_expired else metrics.status,
                 "used_credits_dollars": monthly_data.used_credits_dollars,
                 "monthly_limit_dollars": monthly_data.monthly_limit_dollars,
                 "remaining_dollars": monthly_data.remaining_dollars,
@@ -685,7 +689,7 @@ class CCBurnApp:
 
             # Add projection data
             if metrics.percent_per_hour > 0:
-                current_pct = limit_data.utilization * 100
+                current_pct = limit_data.effective_utilization * 100
                 remaining_pct = 100.0 - current_pct
                 hours_to_100 = remaining_pct / metrics.percent_per_hour
 
@@ -739,8 +743,8 @@ class CCBurnApp:
             limit_data.resets_at,
             limit_data.window_hours,
         )
-        emoji = get_pace_emoji(limit_data.utilization, budget_pace)
-        percent = int(limit_data.utilization * 100)
+        emoji = get_pace_emoji(limit_data.effective_utilization, budget_pace)
+        percent = int(limit_data.effective_utilization * 100)
 
         # Format: 🔥 45% - ccburn Session
         title = f"{emoji} {percent}% - ccburn {self.limit_type.display_name}"

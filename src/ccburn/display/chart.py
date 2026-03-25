@@ -69,7 +69,7 @@ class BurnupChart(JupyterMixin):
         elif self.until == "depleted":
             # Zoom to projected depletion time, fallback to window end
             if self.burn_metrics and self.burn_metrics.percent_per_hour > 0:
-                current_pct = self.limit_data.utilization * 100
+                current_pct = self.limit_data.effective_utilization * 100
                 if current_pct < 100.0:
                     hours_to_100 = (100.0 - current_pct) / self.burn_metrics.percent_per_hour
                     depletion_time = now + timedelta(hours=hours_to_100)
@@ -187,7 +187,7 @@ class BurnupChart(JupyterMixin):
                 elapsed_hours = (now - original_window_start).total_seconds() / 3600
                 budget_pace = min(elapsed_hours / original_window_hours, 1.0)
                 # Determine line color based on utilization AND burn rate
-                color = self._get_plotext_color(self.limit_data.utilization, budget_pace)
+                color = self._get_plotext_color(self.limit_data.effective_utilization, budget_pace)
                 # Use fillx=True for area chart effect (fills down to x-axis)
                 plt.plot(
                     times,
@@ -202,7 +202,7 @@ class BurnupChart(JupyterMixin):
         hits_100_hours = None  # Track when projection hits 100% for vertical marker
         show_projection = display_end > now
         if self.burn_metrics and self.burn_metrics.percent_per_hour > 0 and show_projection:
-            current_pct = self.limit_data.utilization * 100
+            current_pct = self.limit_data.effective_utilization * 100
             now_hours = to_hours(now)
 
             # Only draw projection if not already at or above 100%
