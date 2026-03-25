@@ -293,7 +293,7 @@ def create_compact_output(
     if not parts:
         parts.append("No data available")
 
-    return " | ".join(parts)
+    return " · ".join(parts)
 
 
 def create_compact_output_with_indicator(
@@ -353,4 +353,4 @@ def create_compact_output_with_indicator(
     else:
         parts.append("--")
 
-    return " | ".join(parts)
+    return " · ".join(parts)
