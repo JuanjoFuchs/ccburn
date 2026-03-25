@@ -338,6 +338,241 @@ def create_clear_history_command(app: typer.Typer) -> None:
         raise typer.Exit(0)
 
 
+def create_collect_command(app: typer.Typer) -> None:
+    """Create the collect subcommand."""
+
+    @app.command()
+    def collect() -> None:
+        """Collect rate_limits from Claude Code statusline JSON.
+
+        Reads statusline JSON from stdin, extracts rate_limits data,
+        writes it to a cache file, and passes stdin through to stdout.
+        Designed to wrap your existing statusline command:
+
+        \b
+        Usage in ~/.claude/settings.json:
+            "statusLine": {
+                "command": "ccburn collect | your-statusline-command"
+            }
+        """
+        import json
+        import sys
+
+        try:
+            from .data.credentials import get_ccburn_data_dir
+        except ImportError:
+            from ccburn.data.credentials import get_ccburn_data_dir
+
+        raw = sys.stdin.read()
+
+        # Always pass through to stdout so the downstream statusline works
+        sys.stdout.write(raw)
+        sys.stdout.flush()
+
+        # Extract rate_limits and save to history DB
+        try:
+            from datetime import datetime, timezone
+
+            try:
+                from .data.credentials import get_ccburn_data_dir
+                from .data.history import HistoryDB
+                from .data.models import UsageSnapshot
+            except ImportError:
+                from ccburn.data.credentials import get_ccburn_data_dir
+                from ccburn.data.history import HistoryDB
+                from ccburn.data.models import UsageSnapshot
+
+            data = json.loads(raw)
+            rate_limits = data.get("rate_limits")
+
+            # Write breadcrumb for debugging
+            data_dir = get_ccburn_data_dir()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            (data_dir / "collect_last.json").write_text(
+                json.dumps({"ts": datetime.now(timezone.utc).isoformat(),
+                            "has_rate_limits": rate_limits is not None,
+                            "keys": list(data.keys()),
+                            "rate_limits": rate_limits})
+            )
+            if rate_limits:
+                # Convert statusline format to API-compatible format:
+                #   statusline: { five_hour: { used_percentage, resets_at } }
+                #   API:        { five_hour: { utilization, resets_at } }
+                # resets_at may be an ISO string or Unix epoch (int/float)
+                def normalize_resets_at(val):
+                    if isinstance(val, (int, float)):
+                        return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+                    return val or ""
+
+                api_compat = {}
+                for key in ("five_hour", "seven_day", "seven_day_sonnet", "seven_day_opus"):
+                    block = rate_limits.get(key)
+                    if block and isinstance(block, dict):
+                        api_compat[key] = {
+                            "utilization": block.get("used_percentage", 0),
+                            "resets_at": normalize_resets_at(block.get("resets_at")),
+                        }
+
+                # Include extra_usage if present
+                extra = rate_limits.get("extra_usage")
+                if extra and isinstance(extra, dict):
+                    api_compat["extra_usage"] = extra
+
+                snapshot = UsageSnapshot.from_api_response(
+                    api_compat, timestamp=datetime.now(timezone.utc)
+                )
+                with HistoryDB() as db:
+                    db.save_snapshot(snapshot)
+        except Exception as exc:
+            # Write error to breadcrumb for debugging, never break the pipeline
+            try:
+                data_dir = get_ccburn_data_dir()
+                data_dir.mkdir(parents=True, exist_ok=True)
+                (data_dir / "collect_last.json").write_text(
+                    json.dumps({"error": str(exc), "type": type(exc).__name__})
+                )
+            except Exception:
+                pass
+
+        raise typer.Exit(0)
+
+
+def create_describe_command(app: typer.Typer) -> None:
+    """Create the describe subcommand."""
+
+    @app.command()
+    def describe() -> None:
+        """Describe ccburn for AI agents: what it does, how to set it up.
+
+        Outputs a structured description that an AI agent can use to
+        understand ccburn and configure it automatically.
+        """
+        import json
+
+        try:
+            from importlib.metadata import version as get_version
+
+            ver = get_version("ccburn")
+        except Exception:
+            ver = "unknown"
+
+        try:
+            from .data.credentials import get_ccburn_data_dir, get_claude_config_dir
+        except ImportError:
+            from ccburn.data.credentials import get_ccburn_data_dir, get_claude_config_dir
+
+        claude_config = str(get_claude_config_dir())
+        data_dir = str(get_ccburn_data_dir())
+        settings_path = f"{claude_config}/settings.json"
+
+        description = {
+            "name": "ccburn",
+            "version": ver,
+            "summary": (
+                "Terminal-based Claude Code usage limit visualizer. "
+                "Displays real-time burn-up charts showing session and weekly "
+                "usage against budget pace."
+            ),
+            "data_sources": {
+                "description": (
+                    "ccburn works out of the box — it fetches usage data via the OAuth API "
+                    "and Claude Desktop cookies. However, the OAuth API has persistent rate "
+                    "limiting (429 errors), so the recommended setup adds `ccburn collect` "
+                    "to the Claude Code statusline to receive usage data directly from "
+                    "Claude Code with zero API calls."
+                ),
+                "strategy_chain": [
+                    "DB cache (from `ccburn collect` or previous fetches, up to 2 min old)",
+                    "OAuth API (clean path, may hit 429 rate limit)",
+                    "Claude Desktop web API via cookies + curl (default profile only)",
+                    "SQLite history fallback (stale data with banner)",
+                ],
+            },
+            "setup": {
+                "description": (
+                    "ccburn works without any setup, but for best results add `ccburn collect` "
+                    "to the Claude Code statusline. This pipes Claude Code's statusline JSON "
+                    "through `ccburn collect`, which extracts rate_limits data into a local "
+                    "database. The original JSON is passed through to stdout unchanged, so "
+                    "your existing statusline command continues to work."
+                ),
+                "step_1": {
+                    "action": "Configure statusLine in Claude Code settings",
+                    "file": settings_path,
+                    "instructions": (
+                        "In the statusLine.command field, prepend `ccburn collect |` "
+                        "before the existing command. If no statusLine is configured, "
+                        "set it to just `ccburn collect`."
+                    ),
+                    "example_existing": {
+                        "before": "npx -y ccstatusline@latest",
+                        "after": "ccburn collect | npx -y ccstatusline@latest",
+                    },
+                    "example_new": "ccburn collect",
+                },
+                "step_2": {
+                    "action": "Restart Claude Code to pick up the new statusline command",
+                },
+                "step_3": {
+                    "action": "Run ccburn in a separate terminal",
+                    "command": "ccburn",
+                    "notes": (
+                        "ccburn auto-detects the best available data (session, weekly, "
+                        "or monthly credits). Use `ccburn session`, `ccburn weekly`, or "
+                        "`ccburn monthly` to display a specific limit."
+                    ),
+                },
+                "multi_profile": {
+                    "description": (
+                        "For multiple Claude Code profiles, set CLAUDE_CONFIG_DIR before "
+                        "running ccburn. Each profile gets its own isolated database."
+                    ),
+                    "example": "CLAUDE_CONFIG_DIR=~/.claude-personal ccburn",
+                },
+            },
+            "how_collect_works": {
+                "optional": True,
+                "description": (
+                    "`ccburn collect` is optional. Without it, ccburn fetches data itself "
+                    "via OAuth API or Claude Desktop cookies. `collect` is recommended "
+                    "because it avoids API rate limits and works for all profiles."
+                ),
+                "stdin": "Receives Claude Code statusline JSON (includes rate_limits since v2.1.80)",
+                "stdout": "Passes the same JSON through unchanged (pipe-safe)",
+                "side_effect": f"Writes usage snapshots to SQLite database at {data_dir}/history.db",
+                "requires": "Claude Code >= 2.1.80 (for rate_limits in statusline JSON)",
+            },
+            "commands": {
+                "ccburn": "Auto-detect and display best available limit (TUI)",
+                "ccburn session": "Display 5-hour rolling session limit",
+                "ccburn weekly": "Display 7-day weekly limit",
+                "ccburn monthly": "Display monthly credit usage (enterprise)",
+                "ccburn collect": "Pipe: read statusline JSON from stdin, save to DB, pass through",
+                "ccburn describe": "Output this description (for AI agents)",
+                "ccburn clear-history": "Clear all stored usage history",
+            },
+            "common_flags": {
+                "--once": "Print once and exit (no live updates)",
+                "--json": "Output JSON instead of TUI",
+                "--compact": "Single-line output for status bars/tmux",
+                "--debug": "Show debug information and strategy used",
+                "--since": "Time window (e.g., '2h', '7d', 'start')",
+                "--until": "Display end: 'now', 'end', or 'depleted'",
+                "--interval": "Refresh interval in seconds",
+            },
+            "paths": {
+                "claude_config_dir": claude_config,
+                "ccburn_data_dir": data_dir,
+                "settings_file": settings_path,
+                "history_db": f"{data_dir}/history.db",
+                "log_file": f"{data_dir}/ccburn.log",
+            },
+        }
+
+        typer.echo(json.dumps(description, indent=2))
+        raise typer.Exit(0)
+
+
 def register_commands(app: typer.Typer) -> None:
     """Register all subcommands with the Typer app.
 
@@ -348,4 +583,6 @@ def register_commands(app: typer.Typer) -> None:
     create_weekly_command(app)
     create_weekly_sonnet_command(app)
     create_monthly_command(app)
+    create_collect_command(app)
+    create_describe_command(app)
     create_clear_history_command(app)
