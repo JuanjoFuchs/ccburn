@@ -12,6 +12,7 @@ All notable changes to ccburn will be documented in this file.
   ```
 - **`ccburn describe` command**: outputs structured JSON for AI agents with setup instructions, data source strategy chain, all commands/flags, and resolved paths. Enables agents to auto-configure ccburn.
 - **Multi-profile support**: respects `CLAUDE_CONFIG_DIR` env var so each Claude Code profile gets isolated credentials, history DB, and log files (`~/.claude-personal` → `~/.ccburn-personal`).
+- **`--poll-interval` flag**: separate API poll cadence from render interval ([#6](https://github.com/JuanjoFuchs/ccburn/issues/6)). Display re-renders every `--interval` seconds (timers, budget pace, chart "Now" line stay live), while API polling happens every `--poll-interval` seconds (default 60). Reduces API calls from ~720/hr to ~60/hr, avoiding rate limit exhaustion.
 - **Persistent debug logging**: all API calls, strategy decisions, and errors logged to `~/.ccburn/ccburn.log` (rotating, 1MB max). `--debug` flag now shows which strategy succeeded (oauth, web cookies+curl, statusline cache).
 
 ### Fixed

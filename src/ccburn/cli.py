@@ -115,6 +115,15 @@ MonthlyIntervalOption = typer.Option(
     max=300,
 )
 
+PollIntervalOption = typer.Option(
+    60,
+    "--poll-interval",
+    "-p",
+    help="API poll interval in seconds (default: 60). Display refreshes at --interval.",
+    min=5,
+    max=3600,
+)
+
 DebugOption = typer.Option(
     False,
     "--debug",
@@ -131,20 +140,10 @@ def run_app(
     since: str | None = None,
     until: str = "now",
     interval: int = 5,
+    poll_interval: int = 60,
     debug: bool = False,
 ) -> None:
-    """Run the ccburn application with the specified options.
-
-    Args:
-        limit_type: Which limit to display
-        json_output: Output JSON instead of TUI
-        once: Print once and exit
-        compact: Single-line output
-        since: Time window string (e.g., '2h', '24h')
-        until: Display end: 'now' or 'end'
-        interval: Refresh interval in seconds
-        debug: Show debug info
-    """
+    """Run the ccburn application with the specified options."""
     try:
         from .app import CCBurnApp
     except ImportError:
@@ -173,6 +172,7 @@ def run_app(
     app = CCBurnApp(
         limit_type=limit_type,
         interval=interval,
+        poll_interval=poll_interval,
         since_duration=since_duration,
         until=until,
         json_output=json_output,
@@ -196,6 +196,7 @@ def create_session_command(app: typer.Typer) -> None:
         since: str | None = SinceOption,
         until: str = UntilOption,
         interval: int = SessionIntervalOption,
+        poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
         """Display 5-hour rolling session limit.
@@ -210,6 +211,7 @@ def create_session_command(app: typer.Typer) -> None:
             since=since,
             until=until,
             interval=interval,
+            poll_interval=poll_interval,
             debug=debug,
         )
 
@@ -225,6 +227,7 @@ def create_weekly_command(app: typer.Typer) -> None:
         since: str | None = SinceOption,
         until: str = UntilOption,
         interval: int = WeeklyIntervalOption,
+        poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
         """Display 7-day weekly limit (all models).
@@ -239,6 +242,7 @@ def create_weekly_command(app: typer.Typer) -> None:
             since=since,
             until=until,
             interval=interval,
+            poll_interval=poll_interval,
             debug=debug,
         )
 
@@ -254,6 +258,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
         since: str | None = SinceOption,
         until: str = UntilOption,
         interval: int = WeeklyIntervalOption,
+        poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
         """Display 7-day weekly limit (Sonnet only).
@@ -268,6 +273,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
             since=since,
             until=until,
             interval=interval,
+            poll_interval=poll_interval,
             debug=debug,
         )
 
@@ -283,6 +289,7 @@ def create_monthly_command(app: typer.Typer) -> None:
         since: str | None = SinceOption,
         until: str = UntilOption,
         interval: int = MonthlyIntervalOption,
+        poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
     ) -> None:
         """Display monthly credit usage (enterprise accounts).
@@ -298,6 +305,7 @@ def create_monthly_command(app: typer.Typer) -> None:
             since=since,
             until=until,
             interval=interval,
+            poll_interval=poll_interval,
             debug=debug,
         )
 
@@ -558,7 +566,8 @@ def create_describe_command(app: typer.Typer) -> None:
                 "--debug": "Show debug information and strategy used",
                 "--since": "Time window (e.g., '2h', '7d', 'start')",
                 "--until": "Display end: 'now', 'end', or 'depleted'",
-                "--interval": "Refresh interval in seconds",
+                "--interval": "Render interval in seconds (timers, chart refresh)",
+                "--poll-interval": "API poll interval in seconds (default 60, display stays live between polls)",
             },
             "paths": {
                 "claude_config_dir": claude_config,

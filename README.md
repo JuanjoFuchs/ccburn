@@ -161,7 +161,8 @@ Commands:
   ccburn clear-history  Clear all stored usage history
 
 Options:
-  -i, --interval INT    Refresh interval in seconds [default: 5/30/60]
+  -i, --interval INT    Render interval in seconds [default: 5/30/60]
+  -p, --poll-interval INT  API poll interval in seconds [default: 60]
   -s, --since TEXT      Time window (e.g., '30m', '2h', '7d', 'start')
   -u, --until TEXT      Display end: 'now', 'end', or 'depleted'
   -j, --json            Output JSON and exit

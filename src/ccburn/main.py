@@ -9,6 +9,7 @@ try:
         DebugOption,
         JsonOption,
         OnceOption,
+        PollIntervalOption,
         SessionIntervalOption,
         SinceOption,
         UntilOption,
@@ -21,6 +22,7 @@ except ImportError:
         DebugOption,
         JsonOption,
         OnceOption,
+        PollIntervalOption,
         SessionIntervalOption,
         SinceOption,
         UntilOption,
@@ -56,6 +58,7 @@ def main(
     since: str | None = SinceOption,
     until: str = UntilOption,
     interval: int = SessionIntervalOption,
+    poll_interval: int = PollIntervalOption,
     debug: bool = DebugOption,
 ) -> None:
     """ccburn - Claude Code usage limit visualizer.
@@ -92,6 +95,7 @@ def main(
             since=since,
             until=until,
             interval=interval,
+            poll_interval=poll_interval,
             debug=debug,
         )
 

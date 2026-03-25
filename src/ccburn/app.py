@@ -39,6 +39,7 @@ class CCBurnApp:
         self,
         limit_type: LimitType | None = LimitType.SESSION,
         interval: int = 5,
+        poll_interval: int = 60,
         since_duration: timedelta | None = None,
         until: str = "now",
         json_output: bool = False,
@@ -50,7 +51,8 @@ class CCBurnApp:
 
         Args:
             limit_type: Which limit to display
-            interval: Refresh interval in seconds
+            interval: Render interval in seconds
+            poll_interval: API poll interval in seconds
             since_duration: Time window duration for zoom view (sliding window)
             until: Display end: 'now' or 'end' (window end)
             json_output: Output JSON instead of TUI
@@ -60,6 +62,7 @@ class CCBurnApp:
         """
         self.limit_type = limit_type
         self.interval = interval
+        self.poll_interval = poll_interval
         self.since_duration = since_duration
         self.until = until
         self.json_output = json_output
@@ -109,7 +112,10 @@ class CCBurnApp:
         root_logger.setLevel(logging.DEBUG)
 
         self._log = logging.getLogger("ccburn.app")
-        self._log.info("ccburn started (limit=%s, interval=%ds)", self.limit_type, self.interval)
+        self._log.info(
+            "ccburn started (limit=%s, render=%ds, poll=%ds)",
+            self.limit_type, self.interval, self.poll_interval,
+        )
 
     def _get_since_datetime(self) -> datetime | None:
         """Calculate the since datetime based on current time and duration.
@@ -575,45 +581,49 @@ class CCBurnApp:
     def _main_loop(self, live: Live) -> None:
         """Main TUI loop.
 
-        Args:
-            live: Rich Live instance
+        Renders every `interval` seconds (default 5s) so timers, budget
+        pace, and chart "Now" line stay live. Polls the API on a slower
+        cadence (every 60s or `interval` if larger) to avoid rate limits.
+        See: https://github.com/JuanjoFuchs/ccburn/issues/6
         """
+        poll_interval = max(self.interval, self.poll_interval)
+        last_poll_time = 0.0  # Force immediate first poll
+
         while self.running:
             try:
-                # Fetch new data
-                data_changed = self._fetch_and_update()
+                # Poll API only when poll interval has elapsed
+                now_mono = _time.monotonic()
+                if now_mono - last_poll_time >= poll_interval:
+                    self._fetch_and_update()
+                    last_poll_time = now_mono
 
-                # Re-render on data change OR when showing stale data
-                # (stale banner needs time updates even without new data)
-                should_render = data_changed or self._using_stale_data or self.last_error
-                if should_render:
-                    limit_data = None
-                    if self.last_snapshot:
-                        limit_data = self.last_snapshot.get_limit(self.limit_type)
+                # Always re-render — timers, pace, and chart update from
+                # the local clock even without new API data
+                limit_data = None
+                if self.last_snapshot:
+                    limit_data = self.last_snapshot.get_limit(self.limit_type)
 
-                    stale_since = None
-                    if (self.last_error or self._using_stale_data) and self.last_fetch_time:
-                        stale_since = self.last_fetch_time
+                stale_since = None
+                if (self.last_error or self._using_stale_data) and self.last_fetch_time:
+                    stale_since = self.last_fetch_time
 
-                    updated_layout = self.layout.update(
-                        self.limit_type,
-                        limit_data,
-                        self.snapshots,
-                        error=self.last_error,
-                        stale_since=stale_since,
-                        since_duration=self.since_duration,
-                        until=self.until,
-                    )
-                    live.update(updated_layout)
-                    live.refresh()  # Manual refresh since auto_refresh=False
-                    self._update_window_title()
+                updated_layout = self.layout.update(
+                    self.limit_type,
+                    limit_data,
+                    self.snapshots,
+                    error=self.last_error,
+                    stale_since=stale_since,
+                    since_duration=self.since_duration,
+                    until=self.until,
+                )
+                live.update(updated_layout)
+                live.refresh()
+                self._update_window_title()
 
-                # Sleep until next refresh interval
-                # Use Event.wait() for interruptible sleep on shutdown
+                # Sleep until next render tick
                 self._stop_event.wait(timeout=self.interval)
 
             except Exception:
-                # Log but continue
                 self._stop_event.wait(timeout=self.interval)
 
     def _create_json_output(self) -> dict:
