@@ -6,8 +6,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
+    from .credentials import get_ccburn_data_dir
     from .models import LimitData, LimitType, MonthlyLimitData, UsageSnapshot
 except ImportError:
+    from ccburn.data.credentials import get_ccburn_data_dir
     from ccburn.data.models import LimitData, LimitType, MonthlyLimitData, UsageSnapshot
 
 
@@ -69,7 +71,7 @@ class HistoryDB:
         if in_memory:
             self.db_path = ":memory:"
         elif db_path is None:
-            self.db_path = Path.home() / ".ccburn" / "history.db"
+            self.db_path = get_ccburn_data_dir() / "history.db"
         else:
             self.db_path = Path(db_path)
 

@@ -32,18 +32,50 @@ class InvalidCredentialsError(CredentialsError):
     pass
 
 
+def get_claude_config_dir() -> Path:
+    """Get the Claude configuration directory.
+
+    Respects CLAUDE_CONFIG_DIR env var for multi-profile setups.
+    E.g., CLAUDE_CONFIG_DIR=~/.claude-personal for a personal profile.
+
+    Returns:
+        Path to the Claude config directory (default: ~/.claude)
+    """
+    env_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser()
+    return Path.home() / ".claude"
+
+
+def get_ccburn_data_dir() -> Path:
+    """Get the ccburn data directory for the current profile.
+
+    Derives from CLAUDE_CONFIG_DIR so each Claude profile gets its own
+    history database and log file:
+        ~/.claude          -> ~/.ccburn
+        ~/.claude-personal -> ~/.ccburn-personal
+
+    Returns:
+        Path to ccburn data directory
+    """
+    claude_dir = get_claude_config_dir()
+    # ~/.claude -> .ccburn, ~/.claude-personal -> .ccburn-personal
+    suffix = claude_dir.name.removeprefix(".claude")
+    return claude_dir.parent / f".ccburn{suffix}"
+
+
 def get_credentials_path() -> Path:
     """Get the path to Claude credentials file.
 
     Returns:
-        Path to ~/.claude/.credentials.json
+        Path to credentials file within the Claude config directory
     """
-    # Check environment variable first
+    # Check environment variable first (legacy override)
     env_path = os.environ.get("CREDENTIALS_PATH")
     if env_path:
         return Path(env_path)
 
-    return Path.home() / ".claude" / ".credentials.json"
+    return get_claude_config_dir() / ".credentials.json"
 
 
 def _read_credentials_from_keychain() -> dict | None:
