@@ -2,6 +2,24 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [0.7.0] - 2026-03-24
+
+### Added
+
+- **`ccburn collect` command**: pipe-safe statusline wrapper that extracts `rate_limits` from Claude Code's statusline JSON (v2.1.80+) and saves snapshots to the history DB. Passes stdin through unchanged so existing statusline commands continue to work. This is now the recommended data source — zero API calls, no rate limits, works for all profiles.
+  ```json
+  { "statusLine": { "command": "ccburn collect | your-statusline-command" } }
+  ```
+- **`ccburn describe` command**: outputs structured JSON for AI agents with setup instructions, data source strategy chain, all commands/flags, and resolved paths. Enables agents to auto-configure ccburn.
+- **Multi-profile support**: respects `CLAUDE_CONFIG_DIR` env var so each Claude Code profile gets isolated credentials, history DB, and log files (`~/.claude-personal` → `~/.ccburn-personal`).
+- **Persistent debug logging**: all API calls, strategy decisions, and errors logged to `~/.ccburn/ccburn.log` (rotating, 1MB max). `--debug` flag now shows which strategy succeeded (oauth, web cookies+curl, statusline cache).
+
+### Fixed
+
+- **Cookie retry on failure**: removed permanent `_cookies_failed` flag that prevented cookie re-extraction for the entire session. Cookies are now re-extracted on every failure.
+- **Cross-account data contamination**: cookie-based web API is now skipped for non-default profiles (`CLAUDE_CONFIG_DIR` set), preventing enterprise data from leaking into personal profile databases.
+- **DB cache window**: increased from `interval/2` to 2 minutes so statusline-fed data survives between polling cycles without triggering unnecessary API calls.
+
 ## [0.6.0] - 2026-03-09
 
 ### Added

@@ -26,12 +26,14 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 
 ## Features
 
-- **Real-time burn-up charts** — Visualize session and weekly usage with live-updating terminal graphics
+- **Real-time burn-up charts** — Visualize session, weekly, and monthly usage with live-updating terminal graphics
 - **Pace indicators** — 🧊 Cool. 🔥 On pace. 🚨 Too hot.
 - **Multiple output modes** — Full TUI, compact single-line for status bars, or JSON for scripting
+- **Statusline integration** — `ccburn collect` pipes into your Claude Code statusline for zero-API-call data
+- **Multi-profile support** — Isolated data per Claude Code profile via `CLAUDE_CONFIG_DIR`
 - **Automatic data persistence** — SQLite-backed history for trend analysis
-- **Dynamic window title** — Terminal tab shows current usage at a glance
-- **Zoom views** — Focus on recent activity with `--since`
+- **Agent-friendly** — `ccburn describe` outputs structured JSON for AI agents to auto-configure
+- **Zoom views** — Focus on recent activity with `--since` / `--until`
 
 ## Installation
 
@@ -77,10 +79,26 @@ pip install -e ".[dev]"
    ```
 2. **Run ccburn:**
    ```bash
-   ccburn              # Session limit (default)
-   ccburn weekly       # Weekly limit
-   ccburn weekly-sonnet # Weekly Sonnet limit
+   ccburn                # Auto-detect best available data
+   ccburn session        # 5-hour rolling session limit
+   ccburn weekly         # 7-day weekly limit
+   ccburn monthly        # Monthly credits (enterprise)
    ```
+
+### Recommended: Statusline Integration
+
+Add `ccburn collect` to your Claude Code statusline for the best experience — zero API calls, no rate limits, works with all profiles:
+
+```json
+// In ~/.claude/settings.json
+{
+  "statusLine": {
+    "command": "ccburn collect | your-existing-statusline-command"
+  }
+}
+```
+
+`ccburn collect` reads Claude Code's statusline JSON, saves usage data to a local database, and passes the JSON through unchanged — your existing statusline keeps working.
 
 ## Usage Examples
 
@@ -88,8 +106,10 @@ pip install -e ".[dev]"
 # Full TUI with burn-up chart (default)
 ccburn
 
-# Weekly usage view
-ccburn weekly
+# Specific limit views
+ccburn session         # 5-hour session
+ccburn weekly          # 7-day weekly
+ccburn monthly         # Monthly credits (enterprise)
 
 # Compact output for tmux/status bars
 ccburn --compact
@@ -98,34 +118,58 @@ ccburn --compact
 # JSON output for scripting/automation
 ccburn --json
 
-# Zoom to last 30 minutes
-ccburn --since 30m
+# Zoom views
+ccburn --since 30m                        # Last 30 minutes
+ccburn --since 3d --until end             # Last 3 days through window end
+ccburn --since start --until depleted     # Full window through projected depletion
 
 # Single snapshot (no live updates)
 ccburn --once
 
 # Custom refresh interval (seconds)
 ccburn --interval 10
+
+# AI agent introspection
+ccburn describe        # Structured JSON with setup instructions
 ```
+
+## Multiple Profiles
+
+If you run multiple Claude Code profiles with `CLAUDE_CONFIG_DIR`, each profile gets isolated data:
+
+```bash
+# Enterprise profile (default)
+ccburn
+
+# Personal profile
+CLAUDE_CONFIG_DIR=~/.claude-personal ccburn
+```
+
+Each profile stores its history in a separate database (`~/.ccburn/`, `~/.ccburn-personal/`, etc.).
 
 ## Command Line Reference
 
 ```
-Usage: ccburn [OPTIONS] [LIMIT]
-
-Arguments:
-  [LIMIT]  Which limit to display [default: session]
-           Options: session, weekly, weekly-sonnet
+Commands:
+  ccburn                Auto-detect and display best available limit
+  ccburn session        5-hour rolling session limit
+  ccburn weekly         7-day weekly limit (all models)
+  ccburn weekly-sonnet  7-day weekly limit (Sonnet only)
+  ccburn monthly        Monthly credit usage (enterprise)
+  ccburn collect        Statusline pipe: save usage data to DB, pass through
+  ccburn describe       Output structured JSON for AI agents
+  ccburn clear-history  Clear all stored usage history
 
 Options:
-  -i, --interval INTEGER  Refresh interval in seconds [default: 5/30]
-  -s, --since TEXT        Only show data since (e.g., 30m, 2h, 1d)
-  -j, --json              Output JSON and exit
-  -o, --once              Print once and exit (no live updates)
-  -c, --compact           Single-line output for status bars
-  --debug                 Show debug information
-  --version               Show version and exit
-  --help                  Show this message and exit
+  -i, --interval INT    Refresh interval in seconds [default: 5/30/60]
+  -s, --since TEXT      Time window (e.g., '30m', '2h', '7d', 'start')
+  -u, --until TEXT      Display end: 'now', 'end', or 'depleted'
+  -j, --json            Output JSON and exit
+  -1, --once            Print once and exit (no live updates)
+  -c, --compact         Single-line output for status bars
+  -d, --debug           Show debug information and strategy used
+  -v, --version         Show version and exit
+  --help                Show this message and exit
 ```
 
 ## Pace Indicators
@@ -136,6 +180,18 @@ Options:
 | 🔥 | On pace | Usage tracking with expected budget |
 | 🚨 | Ahead of pace | Usage above expected budget — slow down! |
 
+## Chart Elements
+
+| Element | Description |
+|---------|-------------|
+| **Budget Pace** | Diagonal line showing expected usage if you spend evenly across the window |
+| **Usage** | Your actual usage over time (from historical snapshots) |
+| **Projection** | Dotted line extending your current burn rate to project future usage |
+| **Now** | Vertical line marking the current time |
+| **Depleted** | Vertical line marking when you'll hit 100% at the current burn rate |
+
+Use `--since start --until depleted` to see the full window through the projected depletion point.
+
 ## Requirements
 
 - **Python 3.10+**
@@ -144,13 +200,20 @@ Options:
 
 ## How It Works
 
-ccburn reads your Claude Code credentials and fetches usage data from the Anthropic API. It calculates:
+ccburn uses multiple strategies to get usage data, in priority order:
+
+1. **Statusline cache** — Data from `ccburn collect` in the SQLite DB (recommended, zero API calls)
+2. **OAuth API** — Direct call to `api.anthropic.com/api/oauth/usage` (may hit 429 rate limits)
+3. **Claude Desktop cookies** — Decrypts cookies and calls the web API via `curl` (default profile only)
+4. **DB history fallback** — Shows last known data with a staleness banner
+
+It calculates:
 
 - **Budget pace** — Where you "should" be based on time elapsed in the window
-- **Burn rate** — How fast you're consuming your limit
+- **Burn rate** — How fast you're consuming your limit (linear regression)
 - **Time to limit** — Estimated time until you hit 100% (if current rate continues)
 
-Data is stored locally in SQLite for historical analysis and to minimize API calls when running multiple instances.
+Data is stored locally in SQLite for historical analysis and to minimize API calls.
 
 ## Troubleshooting
 
@@ -170,7 +233,11 @@ Ensure your terminal supports Unicode and has a monospace font with emoji suppor
 
 ### Stale data indicator
 
-If you see "(stale)" in the header, ccburn couldn't reach the API. It will continue showing cached data and retry automatically.
+If you see a yellow "Using cached data" banner, ccburn couldn't reach the API. It will continue showing cached data and retry automatically. Set up `ccburn collect` in your statusline to avoid this entirely.
+
+### Debug mode
+
+Use `--debug` to see which data strategy is being used and troubleshoot issues. Logs are also written to `~/.ccburn/ccburn.log`.
 
 ## Contributing
 
