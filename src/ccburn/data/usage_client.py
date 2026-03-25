@@ -107,8 +107,9 @@ class UsageClient:
         self._ssl_context = _create_ssl_context()
         self._last_response: dict | None = None
         self._last_error: str | None = None
+        self._last_strategy: str | None = None  # Which strategy succeeded
         self._cookies: DesktopCookies | None = None
-        self._cookies_failed: bool = False  # Don't retry cookies if extraction failed
+        self._cookie_error: str | None = None  # Why cookie extraction last failed
         self._has_curl: bool | None = None
 
     def _check_curl(self) -> bool:
@@ -117,18 +118,17 @@ class UsageClient:
             self._has_curl = shutil.which("curl") is not None
         return self._has_curl
 
-    def _get_cookies(self) -> DesktopCookies | None:
+    def _get_cookies(self, force_refresh: bool = False) -> DesktopCookies | None:
         """Get cached or fresh Claude Desktop cookies."""
-        if self._cookies_failed:
-            return None
-        if self._cookies is not None:
+        if self._cookies is not None and not force_refresh:
             return self._cookies
         try:
             self._cookies = get_desktop_cookies()
+            self._cookie_error = None
             return self._cookies
         except CookieError as e:
             log.debug("Cookie extraction failed: %s", e)
-            self._cookies_failed = True
+            self._cookie_error = str(e)
             return None
 
     def _fetch_web_api(self, cookies: DesktopCookies) -> UsageSnapshot:
@@ -173,8 +173,10 @@ class UsageClient:
             raise NetworkError(f"Invalid status from web API: {status_str}")
 
         if status == 403 and "Just a moment" in body:
+            log.warning("web API: 403 Cloudflare challenge")
             raise NetworkError("Cloudflare challenge — cf_clearance cookie may be expired")
         if status != 200:
+            log.warning("web API: HTTP %d", status)
             raise NetworkError(f"Web API returned {status}")
 
         try:
@@ -182,6 +184,7 @@ class UsageClient:
         except json.JSONDecodeError as e:
             raise NetworkError(f"Invalid JSON from web API: {e}")
 
+        log.info("web API: 200 OK")
         self._last_response = data
         self._last_error = None
         return UsageSnapshot.from_api_response(data)
@@ -209,6 +212,7 @@ class UsageClient:
                     request, timeout=self.timeout, context=self._ssl_context
                 ) as response:
                     data = json.loads(response.read())
+                    log.info("oauth API: 200 OK")
                     self._last_response = data
                     self._last_error = None
                     return UsageSnapshot.from_api_response(data)
@@ -227,6 +231,7 @@ class UsageClient:
                         status_code=e.code,
                     ) from e
                 elif e.code == 429:
+                    log.warning("oauth API: 429 rate limited")
                     last_error = NetworkError(
                         "Rate limited by the API (429). "
                         "This is a known issue — see github.com/anthropics/claude-code/issues/30930"
@@ -276,7 +281,9 @@ class UsageClient:
         """
         # Strategy 1: OAuth API (clean path, no side effects)
         try:
-            return self._fetch_oauth_api()
+            result = self._fetch_oauth_api()
+            self._last_strategy = "oauth"
+            return result
         except NetworkError as e:
             log.debug("OAuth API failed: %s", e)
             oauth_error = e
@@ -284,20 +291,26 @@ class UsageClient:
         # Strategy 2: Web API via Claude Desktop cookies + curl
         # Fallback for the persistent 429 rate limit on the OAuth endpoint.
         # See: https://github.com/anthropics/claude-code/issues/30930
-        if self._check_curl():
+        #
+        # Skip for non-default profiles (CLAUDE_CONFIG_DIR set) because Claude
+        # Desktop cookies are tied to whichever account is logged in there,
+        # which may differ from the current profile's account.
+        is_default_profile = not os.environ.get("CLAUDE_CONFIG_DIR")
+        if is_default_profile and self._check_curl():
             cookies = self._get_cookies()
             if cookies:
                 try:
-                    return self._fetch_web_api(cookies)
+                    result = self._fetch_web_api(cookies)
+                    self._last_strategy = "web (cookies+curl)"
+                    return result
                 except (NetworkError, subprocess.SubprocessError) as e:
                     log.debug("Web API failed: %s", e)
                     self._last_error = str(e)
-                    # Invalidate cookies on Cloudflare challenge (need fresh cf_clearance)
-                    if "cf_clearance" in str(e):
-                        self._cookies = None
-                        self._cookies_failed = False
+                    # Invalidate cookies so next call extracts fresh ones
+                    self._cookies = None
 
-        # Both strategies failed — raise the original OAuth error
+        self._last_strategy = None
+        # All strategies failed — raise the OAuth error
         raise oauth_error
 
     def get_last_response(self) -> dict | None:
@@ -307,3 +320,19 @@ class UsageClient:
     def get_last_error(self) -> str | None:
         """Get the last error message."""
         return self._last_error
+
+    def get_last_strategy(self) -> str | None:
+        """Get which strategy succeeded on the last fetch."""
+        return self._last_strategy
+
+    def get_debug_info(self) -> str:
+        """Get a human-readable debug summary of the client state."""
+        lines = []
+        lines.append(f"strategy: {self._last_strategy or 'none (failed)'}")
+        lines.append(f"curl: {'available' if self._has_curl else 'not found'}")
+        lines.append(f"cookies: {'cached' if self._cookies else 'none'}")
+        if self._cookie_error:
+            lines.append(f"cookie error: {self._cookie_error}")
+        if self._last_error:
+            lines.append(f"last error: {self._last_error}")
+        return " | ".join(lines)

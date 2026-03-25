@@ -1,10 +1,13 @@
 """Main application class for ccburn."""
 
+import logging
 import os
 import signal
 import threading
 import time as _time
 from datetime import datetime, timedelta, timezone
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -12,7 +15,7 @@ from rich.live import Live
 from rich.text import Text
 
 try:
-    from .data.credentials import CredentialsNotFoundError, TokenExpiredError
+    from .data.credentials import CredentialsNotFoundError, TokenExpiredError, get_ccburn_data_dir
     from .data.history import HistoryDB
     from .data.models import LimitType, UsageSnapshot
     from .data.usage_client import APIError, NetworkError, UsageClient
@@ -20,7 +23,7 @@ try:
     from .display.layout import BurnupLayout
     from .utils.calculator import calculate_budget_pace, calculate_burn_metrics
 except ImportError:
-    from ccburn.data.credentials import CredentialsNotFoundError, TokenExpiredError
+    from ccburn.data.credentials import CredentialsNotFoundError, TokenExpiredError, get_ccburn_data_dir
     from ccburn.data.history import HistoryDB
     from ccburn.data.models import LimitType, UsageSnapshot
     from ccburn.data.usage_client import APIError, NetworkError, UsageClient
@@ -70,6 +73,7 @@ class CCBurnApp:
         if os.environ.get("WT_SESSION"):  # Windows Terminal
             use_legacy = False
         self.console = Console(legacy_windows=use_legacy)
+        self._setup_logging()
         self.client = UsageClient()
         self.history: HistoryDB | None = None
         self.layout = BurnupLayout(self.console)
@@ -82,6 +86,30 @@ class CCBurnApp:
         self.last_error: str | None = None
         self._using_stale_data: bool = False
         self.snapshots: list[UsageSnapshot] = []
+
+    def _setup_logging(self) -> None:
+        """Configure file logging for troubleshooting.
+
+        Logs to the profile-specific data dir (e.g., ~/.ccburn/ccburn.log).
+        """
+        log_dir = get_ccburn_data_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "ccburn.log"
+
+        handler = RotatingFileHandler(
+            log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+        )
+
+        # Configure the ccburn logger hierarchy
+        root_logger = logging.getLogger("ccburn")
+        root_logger.addHandler(handler)
+        root_logger.setLevel(logging.DEBUG)
+
+        self._log = logging.getLogger("ccburn.app")
+        self._log.info("ccburn started (limit=%s, interval=%ds)", self.limit_type, self.interval)
 
     def _get_since_datetime(self) -> datetime | None:
         """Calculate the since datetime based on current time and duration.
@@ -170,16 +198,20 @@ class CCBurnApp:
         try:
             snapshot = None
 
-            # Check if fresh data exists in database (from another instance)
+            # Check if fresh data exists in database (from another instance
+            # or from `ccburn collect` feeding statusline data).
+            # Use a generous window: data from `collect` arrives in bursts
+            # (on each statusline update) so there can be minutes between writes.
             if self.history:
                 age = self.history.get_latest_snapshot_age_seconds()
-                # If data is fresh (less than half our interval), use cached data
-                if age is not None and age < (self.interval / 2):
+                db_max_age = max(self.interval, 120)  # At least 2 minutes
+                if age is not None and age < db_max_age:
                     snapshot = self.history.get_latest_snapshot()
                     if snapshot:
                         self.last_snapshot = snapshot
                         self.last_fetch_time = snapshot.timestamp
                         self.last_error = None
+                        self._using_stale_data = False
                         # Reload snapshots from database (use current since datetime)
                         self.snapshots = self.history.get_snapshots_for_limit(
                             self.limit_type,
@@ -194,8 +226,12 @@ class CCBurnApp:
             # No fresh cached data, fetch from API
             snapshot = self.client.fetch_usage()
             _ft2 = _time.perf_counter()
+            strategy = self.client.get_last_strategy()
+            self._log.info(
+                "fetch ok via %s in %.3fs", strategy, _ft2 - _ft1,
+            )
             if self.debug:
-                self.console.print(f"[dim]  fetch: API call took {_ft2-_ft1:.3f}s[/dim]")
+                self.console.print(f"[dim]  fetch: API call took {_ft2-_ft1:.3f}s via {strategy}[/dim]")
             self.last_snapshot = snapshot
             self.last_fetch_time = datetime.now(timezone.utc)
             self.last_error = None
@@ -235,10 +271,16 @@ class CCBurnApp:
 
         except (APIError, NetworkError) as e:
             self.last_error = str(e)
+            self._log.warning("fetch failed: %s | %s", e, self.client.get_debug_info())
+            if self.debug:
+                self.console.print(f"[dim]  fetch failed: {self.client.get_debug_info()}[/dim]")
             return False
 
         except Exception as e:
             self.last_error = f"Unexpected error: {e}"
+            self._log.error("fetch error: %s | %s", e, self.client.get_debug_info(), exc_info=True)
+            if self.debug:
+                self.console.print(f"[dim]  fetch failed: {self.client.get_debug_info()}[/dim]")
             return False
 
     def _fetch_with_loading(self) -> bool:
