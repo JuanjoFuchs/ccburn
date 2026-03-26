@@ -22,7 +22,9 @@
 
 TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for status bars, JSON for automation.
 
-![ccburn screenshot](docs/ccburn.png)
+<p align="center">
+  <img src="docs/ccburn_070.png" alt="ccburn screenshot">
+</p>
 
 ## Features
 
