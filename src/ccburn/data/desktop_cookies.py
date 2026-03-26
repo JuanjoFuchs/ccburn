@@ -20,7 +20,6 @@ import sqlite3
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -80,8 +79,6 @@ def get_desktop_cookies() -> DesktopCookies:
 def _get_cookies_windows() -> DesktopCookies:
     """Extract cookies on Windows using DPAPI + AES-256-GCM."""
     import base64
-    import ctypes
-    import ctypes.wintypes
 
     # Paths
     appdata = os.environ.get("APPDATA", "")
@@ -112,11 +109,11 @@ def _get_cookies_windows() -> DesktopCookies:
     # Step 3: Decrypt cookies with AES-256-GCM
     try:
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    except ImportError:
+    except ImportError as e:
         raise CookieError(
             "cryptography package required for cookie decryption.\n"
             "Install with: pip install cryptography"
-        )
+        ) from e
 
     aesgcm = AESGCM(aes_key)
     cookies = {}
@@ -187,16 +184,15 @@ def _get_cookies_macos() -> DesktopCookies:
     encrypted_cookies = _read_cookie_db(cookies_db_path)
 
     # Step 3: Decrypt with AES-128-CBC
-    import struct
 
     try:
         from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
         from cryptography.hazmat.primitives.padding import PKCS7
-    except ImportError:
+    except ImportError as e:
         raise CookieError(
             "cryptography package required for cookie decryption.\n"
             "Install with: pip install cryptography"
-        )
+        ) from e
 
     cookies = {}
     iv = b"\x20" * 16  # Chromium uses space-filled IV on macOS
@@ -238,7 +234,7 @@ def _read_cookie_db(db_path: str) -> dict[str, bytes]:
         rows = conn.execute(query, needed).fetchall()
         conn.close()
         if rows:
-            return {name: ev for name, ev in rows}
+            return dict(rows)
     except sqlite3.OperationalError:
         pass
 
@@ -253,9 +249,9 @@ def _read_cookie_db(db_path: str) -> dict[str, bytes]:
                 [
                     "sqlite3",
                     db_path,
-                    f"SELECT name, hex(encrypted_value) FROM cookies "
-                    f"WHERE host_key = '.claude.ai' "
-                    f"AND name IN ('sessionKey', 'lastActiveOrg', 'cf_clearance');",
+                    "SELECT name, hex(encrypted_value) FROM cookies "
+                    "WHERE host_key = '.claude.ai' "
+                    "AND name IN ('sessionKey', 'lastActiveOrg', 'cf_clearance');",
                 ],
                 capture_output=True,
                 text=True,
@@ -295,7 +291,7 @@ def _read_cookie_db(db_path: str) -> dict[str, bytes]:
         conn = sqlite3.connect(tmp_path, timeout=1)
         rows = conn.execute(query, needed).fetchall()
         conn.close()
-        return {name: ev for name, ev in rows}
+        return dict(rows)
     except sqlite3.OperationalError as e:
         raise CookieError(f"Failed to read copied cookie database: {e}") from e
     finally:

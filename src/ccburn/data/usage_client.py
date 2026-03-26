@@ -19,11 +19,11 @@ import urllib.error
 import urllib.request
 
 try:
-    from .credentials import CredentialsError, get_access_token
+    from .credentials import get_access_token
     from .desktop_cookies import CookieError, DesktopCookies, get_desktop_cookies
     from .models import UsageSnapshot
 except ImportError:
-    from ccburn.data.credentials import CredentialsError, get_access_token
+    from ccburn.data.credentials import get_access_token
     from ccburn.data.desktop_cookies import CookieError, DesktopCookies, get_desktop_cookies
     from ccburn.data.models import UsageSnapshot
 
@@ -169,8 +169,8 @@ class UsageClient:
         body, status_str = lines
         try:
             status = int(status_str)
-        except ValueError:
-            raise NetworkError(f"Invalid status from web API: {status_str}")
+        except ValueError as e:
+            raise NetworkError(f"Invalid status from web API: {status_str}") from e
 
         if status == 403 and "Just a moment" in body:
             log.warning("web API: 403 Cloudflare challenge")
@@ -182,7 +182,7 @@ class UsageClient:
         try:
             data = json.loads(body)
         except json.JSONDecodeError as e:
-            raise NetworkError(f"Invalid JSON from web API: {e}")
+            raise NetworkError(f"Invalid JSON from web API: {e}") from e
 
         log.info("web API: 200 OK")
         self._last_response = data

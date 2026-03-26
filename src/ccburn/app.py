@@ -7,7 +7,6 @@ import threading
 import time as _time
 from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -23,7 +22,11 @@ try:
     from .display.layout import BurnupLayout
     from .utils.calculator import calculate_budget_pace, calculate_burn_metrics
 except ImportError:
-    from ccburn.data.credentials import CredentialsNotFoundError, TokenExpiredError, get_ccburn_data_dir
+    from ccburn.data.credentials import (
+        CredentialsNotFoundError,
+        TokenExpiredError,
+        get_ccburn_data_dir,
+    )
     from ccburn.data.history import HistoryDB
     from ccburn.data.models import LimitType, UsageSnapshot
     from ccburn.data.usage_client import APIError, NetworkError, UsageClient
