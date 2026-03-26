@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/github/license/JuanjoFuchs/ccburn)](LICENSE)
 
 <p align="center">
-  <img src="docs/cash1.png" alt="Burning tokens" width="140">
+  <img src="docs/cash1.png" alt="Burning tokens" width="60">
 </p>
 
 <p align="center">
