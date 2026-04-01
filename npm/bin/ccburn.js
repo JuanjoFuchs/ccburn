@@ -27,7 +27,12 @@ const child = spawn(binaryPath, process.argv.slice(2), {
 });
 
 child.on('error', (err) => {
-  console.error(`Error executing ccburn: ${err.message}`);
+  if (err.code === 'ENOENT') {
+    console.error('Error: ccburn binary not compatible with this system (likely musl/Alpine Linux).');
+    console.error('Install via pip instead: pip install ccburn');
+  } else {
+    console.error(`Error executing ccburn: ${err.message}`);
+  }
   process.exit(1);
 });
 
