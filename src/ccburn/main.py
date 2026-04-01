@@ -1,5 +1,17 @@
 """ccburn - Terminal-based Claude Code usage limit visualizer."""
 
+import sys
+
+# Fast path: `ccburn collect` bypasses Typer entirely for minimal latency.
+# This runs before any heavy imports (~80ms vs ~350ms).
+if len(sys.argv) >= 2 and sys.argv[1] == "collect":
+    try:
+        from .collect import main as _collect_main
+    except ImportError:
+        from ccburn.collect import main as _collect_main
+
+    _collect_main()
+    sys.exit(0)
 
 import typer
 

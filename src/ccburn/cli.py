@@ -160,9 +160,12 @@ def run_app(
         raise typer.Exit(1)
 
     # Parse since duration if provided
-    # 'start' means beginning of the window (same as no --since, but allows --until)
+    # 'start' means beginning of the window — uses timedelta(0) as a sentinel
+    # so the chart knows --since was explicitly set (enables --until cropping)
     since_duration = None
-    if since and since.lower() != "start":
+    if since and since.lower() == "start":
+        since_duration = timedelta(0)
+    elif since:
         try:
             since_duration = parse_duration(since)
         except typer.BadParameter as e:
@@ -354,7 +357,7 @@ def create_collect_command(app: typer.Typer) -> None:
         """Collect rate_limits from Claude Code statusline JSON.
 
         Reads statusline JSON from stdin, extracts rate_limits data,
-        writes it to a cache file, and passes stdin through to stdout.
+        writes it to the history DB, and passes stdin through to stdout.
         Designed to wrap your existing statusline command:
 
         \b
@@ -363,85 +366,13 @@ def create_collect_command(app: typer.Typer) -> None:
                 "command": "ccburn collect | your-statusline-command"
             }
         """
-        import json
-        import sys
-
+        # Delegate to the fast standalone module (avoids double Typer overhead)
         try:
-            from .data.credentials import get_ccburn_data_dir
+            from .collect import main as collect_main
         except ImportError:
-            from ccburn.data.credentials import get_ccburn_data_dir
+            from ccburn.collect import main as collect_main
 
-        raw = sys.stdin.read()
-
-        # Always pass through to stdout so the downstream statusline works
-        sys.stdout.write(raw)
-        sys.stdout.flush()
-
-        # Extract rate_limits and save to history DB
-        try:
-            from datetime import datetime, timezone
-
-            try:
-                from .data.credentials import get_ccburn_data_dir
-                from .data.history import HistoryDB
-                from .data.models import UsageSnapshot
-            except ImportError:
-                from ccburn.data.credentials import get_ccburn_data_dir
-                from ccburn.data.history import HistoryDB
-                from ccburn.data.models import UsageSnapshot
-
-            data = json.loads(raw)
-            rate_limits = data.get("rate_limits")
-
-            # Write breadcrumb for debugging
-            data_dir = get_ccburn_data_dir()
-            data_dir.mkdir(parents=True, exist_ok=True)
-            (data_dir / "collect_last.json").write_text(
-                json.dumps({"ts": datetime.now(timezone.utc).isoformat(),
-                            "has_rate_limits": rate_limits is not None,
-                            "keys": list(data.keys()),
-                            "rate_limits": rate_limits})
-            )
-            if rate_limits:
-                # Convert statusline format to API-compatible format:
-                #   statusline: { five_hour: { used_percentage, resets_at } }
-                #   API:        { five_hour: { utilization, resets_at } }
-                # resets_at may be an ISO string or Unix epoch (int/float)
-                def normalize_resets_at(val):
-                    if isinstance(val, (int, float)):
-                        return datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
-                    return val or ""
-
-                api_compat = {}
-                for key in ("five_hour", "seven_day", "seven_day_sonnet", "seven_day_opus"):
-                    block = rate_limits.get(key)
-                    if block and isinstance(block, dict):
-                        api_compat[key] = {
-                            "utilization": block.get("used_percentage", 0),
-                            "resets_at": normalize_resets_at(block.get("resets_at")),
-                        }
-
-                # Include extra_usage if present
-                extra = rate_limits.get("extra_usage")
-                if extra and isinstance(extra, dict):
-                    api_compat["extra_usage"] = extra
-
-                snapshot = UsageSnapshot.from_api_response(
-                    api_compat, timestamp=datetime.now(timezone.utc)
-                )
-                with HistoryDB() as db:
-                    db.save_snapshot(snapshot)
-        except Exception as exc:
-            # Write error to breadcrumb for debugging, never break the pipeline
-            try:
-                data_dir = get_ccburn_data_dir()
-                data_dir.mkdir(parents=True, exist_ok=True)
-                (data_dir / "collect_last.json").write_text(
-                    json.dumps({"error": str(exc), "type": type(exc).__name__})
-                )
-            except Exception:
-                pass
-
+        collect_main()
         raise typer.Exit(0)
 
 
