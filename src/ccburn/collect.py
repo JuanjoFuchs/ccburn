@@ -63,6 +63,17 @@ def main():
     try:
         data = json.loads(raw)
         rate_limits = data.get("rate_limits")
+
+        # Write breadcrumb for debugging
+        data_dir = _get_data_dir()
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / "collect_last.json").write_text(json.dumps({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "has_rate_limits": rate_limits is not None,
+            "keys": list(data.keys()),
+            "rate_limits": rate_limits,
+        }))
+
         if not rate_limits:
             return
 

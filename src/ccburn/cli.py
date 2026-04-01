@@ -474,12 +474,18 @@ def create_describe_command(app: typer.Typer) -> None:
                 "description": (
                     "`ccburn collect` is optional. Without it, ccburn fetches data itself "
                     "via OAuth API or Claude Desktop cookies. `collect` is recommended "
-                    "because it avoids API rate limits and works for all profiles."
+                    "for Pro/Max plans because it avoids API rate limits."
                 ),
                 "stdin": "Receives Claude Code statusline JSON (includes rate_limits since v2.1.80)",
                 "stdout": "Passes the same JSON through unchanged (pipe-safe)",
                 "side_effect": f"Writes usage snapshots to SQLite database at {data_dir}/history.db",
                 "requires": "Claude Code >= 2.1.80 (for rate_limits in statusline JSON)",
+                "limitation": (
+                    "Enterprise accounts do NOT receive rate_limits in the statusline JSON. "
+                    "Enterprise uses monthly credits (extra_usage) which is not included in "
+                    "the statusline data. For enterprise, ccburn falls back to the OAuth API "
+                    "or Claude Desktop cookies automatically."
+                ),
             },
             "commands": {
                 "ccburn": "Auto-detect and display best available limit (TUI)",
