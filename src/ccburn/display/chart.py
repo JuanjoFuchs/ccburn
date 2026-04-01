@@ -60,10 +60,10 @@ class BurnupChart(JupyterMixin):
         display_start = window_start
         display_end = window_end
 
-        if self.since_duration:
+        if self.since_duration and self.since_duration > timedelta(0):
             display_start = max(window_start, now - self.since_duration)
 
-        if self.since_duration and self.until == "now":
+        if self.since_duration is not None and self.until == "now":
             # Sliding window: both edges move forward with time
             display_end = now
         elif self.until == "depleted":
