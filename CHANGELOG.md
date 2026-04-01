@@ -2,6 +2,14 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [0.7.1] - 2026-04-01
+
+### Fixed
+
+- **Fast `ccburn collect`**: bypasses Typer/Rich imports by intercepting `collect` in `sys.argv` before heavy imports load. Reduces statusline latency from ~500ms to ~160ms. Works transparently with all install methods.
+- **`--since start --until now`**: now correctly crops the chart to the current time instead of showing the full window. Uses `timedelta(0)` sentinel to distinguish explicit `--since start` from no `--since` flag.
+- **Alpine Linux error**: the npm binary (glibc) fails with ENOENT on musl/Alpine. Now shows a clear message pointing to `pip install ccburn`.
+
 ## [0.7.0] - 2026-03-24
 
 ### Added
