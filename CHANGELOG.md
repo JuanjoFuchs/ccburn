@@ -2,6 +2,13 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [0.7.2] - 2026-04-02
+
+### Fixed
+
+- **Auto-scale Y-axis**: chart Y-axis now scales to the data range instead of fixed 0-100%. Early-month usage (e.g., 3%) was invisible at the bottom. Projection values are included in scaling so `--until depleted` shows the full range when needed.
+- **Empty chart in auto-detect mode**: when running `ccburn` without a subcommand, snapshots were loaded before auto-detect resolved the limit type, resulting in an empty chart. Now reloads snapshots after detection.
+
 ## [0.7.1] - 2026-04-01
 
 ### Fixed
