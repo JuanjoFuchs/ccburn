@@ -237,14 +237,21 @@ class BurnupChart(JupyterMixin):
         # Configure axes
         plt.xlim(0, display_hours)
 
-        # Y-axis: dynamic when zoomed (--since), fixed 0-100 otherwise
-        if self.since_duration and values:
-            # Calculate dynamic range from data with padding
-            all_y_values = values + pace_y
+        # Y-axis: auto-scale to data range for readability
+        # Includes usage, budget pace, and projection values
+        all_y_values = values + pace_y
+        if hits_100_hours is not None:
+            all_y_values.append(100.0)  # Projection reaches 100%
+        elif self.burn_metrics and self.burn_metrics.percent_per_hour > 0:
+            current_pct = self.limit_data.effective_utilization * 100
+            remaining_window_hours = (display_end - now).total_seconds() / 3600
+            projected_end = current_pct + (self.burn_metrics.percent_per_hour * remaining_window_hours)
+            all_y_values.append(min(projected_end, 100.0))
+
+        if all_y_values:
             data_min = min(all_y_values)
             data_max = max(all_y_values)
-            # Add 10% padding for readability
-            padding = (data_max - data_min) * 0.1
+            padding = max((data_max - data_min) * 0.1, 1.0)
             y_min = max(0, data_min - padding)
             y_max = min(100, data_max + padding)
             # Ensure at least 10% range for visibility

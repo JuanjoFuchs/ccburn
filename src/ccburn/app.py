@@ -124,9 +124,10 @@ class CCBurnApp:
         """Calculate the since datetime based on current time and duration.
 
         Returns:
-            datetime for filtering, or None if no duration set
+            datetime for filtering, or None if no duration set.
+            timedelta(0) means --since start (full window), treated as None.
         """
-        if self.since_duration is None:
+        if self.since_duration is None or self.since_duration == timedelta(0):
             return None
         return datetime.now(timezone.utc) - self.since_duration
 
@@ -439,6 +440,13 @@ class CCBurnApp:
                 self.console.print("[red]No usage data available.[/red]")
                 self.console.print("\n[dim]Check that Claude Code is running and authenticated.[/dim]")
                 return 1
+
+        # Reload snapshots now that limit_type is resolved
+        if self.history and self.limit_type:
+            self.snapshots = self.history.get_snapshots_for_limit(
+                self.limit_type,
+                since=self._get_since_datetime(),
+            )
 
         # Check if requested limit type is available
         if not self._check_limit_available():
