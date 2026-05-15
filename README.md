@@ -75,7 +75,37 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-1. **Run Claude Code first** to ensure credentials are fresh:
+Let Claude Code do the setup for you. Paste this in:
+
+> Run `npx -y ccburn describe` and configure ccburn for me using the output.
+
+`ccburn describe` emits structured JSON with your exact `settings.json` path, the before/after statusline snippet, multi-profile notes, and the full command reference — everything Claude Code needs to wire up `ccburn collect` without you reading the rest of this README.
+
+Prefer manual setup? See [Manual Setup](#manual-setup) below.
+
+## Why `ccburn collect`?
+
+ccburn needs usage data, and its default sources are unreliable:
+
+- **OAuth API** — frequently returns 429 rate limits
+- **Claude Desktop cookies** — only work for the default profile
+
+`ccburn collect` solves this by reading the `rate_limits` JSON Claude Code already emits to its statusline (since v2.1.80) and saving it to a local SQLite DB. Zero extra API calls, no rate limits, works with all profiles.
+
+```json
+// ~/.claude/settings.json
+{
+  "statusLine": {
+    "command": "ccburn collect | your-existing-statusline-command"
+  }
+}
+```
+
+`ccburn collect` passes the original JSON through unchanged, so your existing statusline keeps working.
+
+## Manual Setup
+
+1. **Run Claude Code first** to refresh credentials:
    ```bash
    claude
    ```
@@ -86,21 +116,7 @@ pip install -e ".[dev]"
    ccburn weekly         # 7-day weekly limit
    ccburn monthly        # Monthly credits (enterprise)
    ```
-
-### Recommended: Statusline Integration
-
-Add `ccburn collect` to your Claude Code statusline for the best experience — zero API calls, no rate limits, works with all profiles:
-
-```json
-// In ~/.claude/settings.json
-{
-  "statusLine": {
-    "command": "ccburn collect | your-existing-statusline-command"
-  }
-}
-```
-
-`ccburn collect` reads Claude Code's statusline JSON, saves usage data to a local database, and passes the JSON through unchanged — your existing statusline keeps working.
+3. **Set up the statusline** — see [Why `ccburn collect`?](#why-ccburn-collect) above.
 
 ## Usage Examples
 
@@ -115,7 +131,7 @@ ccburn monthly         # Monthly credits (enterprise)
 
 # Compact output for tmux/status bars
 ccburn --compact
-# Output: Session: 🔥 45% (2h14m) | Weekly: 🧊 12% | Sonnet: 🧊 3%
+# Output: Session: 🔥 45% (2h14m) | Weekly: 🧊 12%
 
 # JSON output for scripting/automation
 ccburn --json
