@@ -49,6 +49,7 @@ class CCBurnApp:
         once: bool = False,
         compact: bool = False,
         debug: bool = False,
+        recent_window_minutes: int | None = None,
     ):
         """Initialize the application.
 
@@ -72,6 +73,7 @@ class CCBurnApp:
         self.once = once
         self.compact = compact
         self.debug = debug
+        self.recent_window_minutes = recent_window_minutes
 
         # Disable legacy_windows mode for modern terminals to prevent Unicode issues
         # Rich may incorrectly detect legacy mode even in Windows Terminal
@@ -530,6 +532,7 @@ class CCBurnApp:
             stale_since=stale_since,
             since_duration=self.since_duration,
             until=self.until,
+            recent_window_minutes=self.recent_window_minutes,
         )
         self.console.print(layout)
 
@@ -562,6 +565,7 @@ class CCBurnApp:
                 error=self.last_error,
                 since_duration=self.since_duration,
                 until=self.until,
+                recent_window_minutes=self.recent_window_minutes,
             )
 
             # Set initial window title
@@ -626,6 +630,7 @@ class CCBurnApp:
                     stale_since=stale_since,
                     since_duration=self.since_duration,
                     until=self.until,
+                    recent_window_minutes=self.recent_window_minutes,
                 )
                 live.update(updated_layout)
                 live.refresh()
@@ -657,7 +662,7 @@ class CCBurnApp:
         for lt in [LimitType.SESSION, LimitType.WEEKLY, LimitType.WEEKLY_SONNET]:
             limit_data = self.last_snapshot.get_limit(lt)
             if limit_data:
-                metrics = calculate_burn_metrics(limit_data, self.snapshots)
+                metrics = calculate_burn_metrics(limit_data, self.snapshots, self.recent_window_minutes)
                 minutes_left = int(
                     (limit_data.resets_at - datetime.now(timezone.utc)).total_seconds() / 60
                 )
@@ -680,7 +685,7 @@ class CCBurnApp:
         # Add monthly credits if available
         monthly_data = self.last_snapshot.monthly
         if monthly_data:
-            metrics = calculate_burn_metrics(monthly_data, self.snapshots)
+            metrics = calculate_burn_metrics(monthly_data, self.snapshots, self.recent_window_minutes)
             days_left = int(
                 (monthly_data.resets_at - datetime.now(timezone.utc)).total_seconds() / 86400
             )
@@ -699,7 +704,7 @@ class CCBurnApp:
         # Add burn rate and projection for selected limit
         limit_data = self.last_snapshot.get_limit(self.limit_type)
         if limit_data:
-            metrics = calculate_burn_metrics(limit_data, self.snapshots)
+            metrics = calculate_burn_metrics(limit_data, self.snapshots, self.recent_window_minutes)
             output["burn_rate"] = {
                 "limit": self.limit_type.value,
                 "percent_per_hour": round(metrics.percent_per_hour, 2),

@@ -76,6 +76,7 @@ class BurnupLayout:
         stale_since: datetime | None = None,
         since_duration: timedelta | None = None,
         until: str = "now",
+        recent_window_minutes: int | None = None,
     ) -> Layout:
         """Update the layout with new data.
 
@@ -98,7 +99,7 @@ class BurnupLayout:
 
         # Calculate metrics
         if limit_data:
-            self._last_metrics = calculate_burn_metrics(limit_data, snapshots)
+            self._last_metrics = calculate_burn_metrics(limit_data, snapshots, recent_window_minutes)
 
         width, height = self.get_terminal_size()
 
