@@ -123,6 +123,117 @@ class TestCalculateBurnRate:
         assert rate == pytest.approx(0.0, abs=0.1)
 
 
+class TestRecentWindowBurnRate:
+    """Tests for calculate_burn_rate with recent_window_minutes."""
+
+    def _make_snapshot(self, ts: datetime, utilization: float) -> UsageSnapshot:
+        return UsageSnapshot(
+            timestamp=ts,
+            session=LimitData(
+                utilization=utilization,
+                resets_at=ts + timedelta(hours=4),
+                limit_type=LimitType.SESSION,
+            ),
+            weekly=None,
+            weekly_sonnet=None,
+            weekly_opus=None,
+        )
+
+    def test_excludes_old_snapshots(self):
+        """recent_window_minutes should ignore snapshots older than the cutoff."""
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=5)
+
+        # 10 idle snapshots 2h ago (flat at 20%)
+        old_snapshots = [
+            self._make_snapshot(now - timedelta(hours=2, minutes=i), 0.20)
+            for i in range(10)
+        ]
+        # 5 active snapshots in the last 20 minutes (rising from 20% to 30%)
+        recent_snapshots = [
+            self._make_snapshot(now - timedelta(minutes=20 - i * 4), 0.20 + i * 0.02)
+            for i in range(5)
+        ]
+        all_snapshots = sorted(old_snapshots + recent_snapshots, key=lambda s: s.timestamp)
+
+        rate_full = calculate_burn_rate(
+            all_snapshots, LimitType.SESSION, window_start, window_hours=5
+        )
+        rate_recent = calculate_burn_rate(
+            all_snapshots, LimitType.SESSION, window_start, window_hours=5,
+            recent_window_minutes=30,
+        )
+
+        # Recent window sees the active slope; full window is diluted by idle data
+        assert rate_recent > rate_full
+
+    def test_insufficient_points_returns_zero(self):
+        """When fewer than min_points snapshots fall in the recent window, return 0."""
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=5)
+
+        # 8 snapshots from 2h ago, only 2 in the last 10 minutes
+        old_snapshots = [
+            self._make_snapshot(now - timedelta(hours=2, minutes=i), 0.20 + i * 0.01)
+            for i in range(8)
+        ]
+        recent_snapshots = [
+            self._make_snapshot(now - timedelta(minutes=j * 3), 0.50 + j * 0.02)
+            for j in range(2)
+        ]
+        snapshots = sorted(old_snapshots + recent_snapshots, key=lambda s: s.timestamp)
+
+        rate = calculate_burn_rate(
+            snapshots, LimitType.SESSION, window_start, window_hours=5,
+            recent_window_minutes=10,
+        )
+        assert rate == 0.0
+
+    def test_none_is_backward_compatible(self):
+        """recent_window_minutes=None must give the same result as not passing the param."""
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=5)
+        snapshots = [
+            self._make_snapshot(now - timedelta(minutes=30 - i * 6), 0.10 + i * 0.02)
+            for i in range(5)
+        ]
+
+        rate_default = calculate_burn_rate(
+            snapshots, LimitType.SESSION, window_start, window_hours=5
+        )
+        rate_none = calculate_burn_rate(
+            snapshots, LimitType.SESSION, window_start, window_hours=5,
+            recent_window_minutes=None,
+        )
+        assert rate_default == pytest.approx(rate_none)
+
+    def test_span_check_uses_recent_window_size(self):
+        """min_span check should be relative to recent_window_minutes, not the full window."""
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(hours=5)
+
+        # 4 snapshots spanning 4 minutes — well under 10% of a 5h window (30 min)
+        # but comfortably over 10% of a 60m recent window (6 min... wait, 4 < 6)
+        # Use a 30m recent window: min_span = 30m * 10% = 3 min, span = 4 min → should pass
+        snapshots = [
+            self._make_snapshot(now - timedelta(minutes=4 - i), 0.30 + i * 0.03)
+            for i in range(4)
+        ]
+
+        rate_full = calculate_burn_rate(
+            snapshots, LimitType.SESSION, window_start, window_hours=5
+        )
+        rate_recent = calculate_burn_rate(
+            snapshots, LimitType.SESSION, window_start, window_hours=5,
+            recent_window_minutes=30,
+        )
+
+        # Full window: span (4 min) < min_span (30 min) → 0
+        assert rate_full == 0.0
+        # Recent window: span (4 min) > min_span (3 min) → non-zero
+        assert rate_recent > 0.0
+
+
 class TestEstimateTimeToEmpty:
     """Tests for estimate_time_to_empty."""
 
