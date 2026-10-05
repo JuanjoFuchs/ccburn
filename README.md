@@ -34,6 +34,7 @@ TUI and CLI for Claude Code usage limits — burn-up charts, compact mode for st
 - **Statusline integration** — `ccburn collect` pipes into your Claude Code statusline for zero-API-call data
 - **Multi-profile support** — Isolated data per Claude Code profile via `CLAUDE_CONFIG_DIR`
 - **Automatic data persistence** — SQLite-backed history for trend analysis
+- **Shareable history** — `ccburn history --json` prints that history for other tools, such as the [ccburn-mod](https://github.com/JuanjoFuchs/ccburn-mod) chart inside Claude Code
 - **Agent-friendly** — `ccburn describe` outputs structured JSON for AI agents to auto-configure
 - **Zoom views** — Focus on recent activity with `--since` / `--until`
 

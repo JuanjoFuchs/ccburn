@@ -2,6 +2,12 @@
 
 All notable changes to ccburn will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **`ccburn history --json`**: prints the usage history as JSON (`used_percentage` 0-100, `resets_at`, UTC timestamps, oldest first) for tools that share ccburn's data, such as [ccburn-mod](https://github.com/JuanjoFuchs/ccburn-mod). `--since-hours N` bounds it; `--changes-only` drops repeats. Read-only, and fast-pathed like `collect`.
+
 ## [0.7.2] - 2026-04-02
 
 ### Fixed

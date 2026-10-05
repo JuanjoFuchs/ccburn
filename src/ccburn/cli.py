@@ -376,6 +376,32 @@ def create_collect_command(app: typer.Typer) -> None:
         raise typer.Exit(0)
 
 
+def create_history_command(app: typer.Typer) -> None:
+    """Create the history subcommand."""
+
+    @app.command()
+    def history(
+        json_output: bool = typer.Option(True, "--json", help="Print JSON (the only format)."),
+        since_hours: float = typer.Option(168, "--since-hours", help="Only snapshots this recent."),
+        changes_only: bool = typer.Option(
+            False, "--changes-only", help="Drop snapshots equal to the previous one (keeps the newest)."
+        ),
+    ) -> None:
+        """Print the usage history as JSON, for tools that share ccburn's data.
+
+        Read-only. Each snapshot carries its limits in the status line's units
+        (used_percentage 0-100, resets_at). Normally served by a fast path
+        that skips this CLI layer.
+        """
+        try:
+            from .history_export import main as history_main
+        except ImportError:
+            from ccburn.history_export import main as history_main
+
+        args = ["--since-hours", str(since_hours)] + (["--changes-only"] if changes_only else [])
+        raise typer.Exit(history_main(args))
+
+
 def create_describe_command(app: typer.Typer) -> None:
     """Create the describe subcommand."""
 
@@ -493,6 +519,13 @@ def create_describe_command(app: typer.Typer) -> None:
                 "ccburn weekly": "Display 7-day weekly limit",
                 "ccburn monthly": "Display monthly credit usage (enterprise)",
                 "ccburn collect": "Pipe: read statusline JSON from stdin, save to DB, pass through",
+                "ccburn history --json": (
+                    "Print the history as JSON for other tools: "
+                    '{"version": 1, "data_dir", "snapshots": [{"timestamp", "limits": '
+                    '{"five_hour": {"used_percentage", "resets_at"}, ...}}]}, oldest first. '
+                    "--since-hours N (default 168); --changes-only drops snapshots equal to "
+                    "the previous one. Timestamps are UTC. Read-only."
+                ),
                 "ccburn describe": "Output this description (for AI agents)",
                 "ccburn clear-history": "Clear all stored usage history",
             },
@@ -530,5 +563,6 @@ def register_commands(app: typer.Typer) -> None:
     create_weekly_sonnet_command(app)
     create_monthly_command(app)
     create_collect_command(app)
+    create_history_command(app)
     create_describe_command(app)
     create_clear_history_command(app)

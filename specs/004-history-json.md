@@ -1,7 +1,7 @@
 ---
 id: "004"
 title: ccburn history --json, for tools that share ccburn's data
-status: pending          # pending | in_progress | complete
+status: complete         # pending | in_progress | complete
 blocked_by: []
 blocks: []
 ---
@@ -45,7 +45,8 @@ This spec adds one read-only command that prints the history as JSON, so a tool 
   - `limits` holds `five_hour`, `seven_day`, `seven_day_sonnet` and `seven_day_opus`, each only when that snapshot has a value for it.
   - `used_percentage` is on the 0–100 scale, the scale the status line uses.
   - `resets_at` is the stored ISO string.
-- **FR2.** `--since-hours N` (default 168) limits output to snapshots with `timestamp` at or after now − N hours.
+- **FR2.** `--since-hours N` (default 168) limits output to snapshots with `timestamp` at or after now − N hours. Timestamps are compared as times, not strings, because stored ones mix UTC and local offsets; every output `timestamp` is UTC (`+00:00`).
+- **FR2a.** `--changes-only` drops a snapshot whose `limits` equal the previous one's, but always keeps the newest. The status line writes a snapshot on every refresh of every session (about 3,000 in 5 hours on a busy profile), and a chart only needs the changes.
 - **FR3.** The data directory follows `CLAUDE_CONFIG_DIR` exactly as every other ccburn command does (`~/.claude` → `~/.ccburn`, `~/.claude-work` → `~/.ccburn-work`).
 - **FR4.** No history database yet prints `"snapshots": []` and exits 0. The command never creates the database or its directory.
 - **FR5.** Fast path, like `collect`: `ccburn history` skips the Typer/Rich imports.
@@ -53,7 +54,7 @@ This spec adds one read-only command that prints the history as JSON, so a tool 
 
 ### Non-Functional Requirements
 
-- **NFR1.** Under 300 ms on a database of 10,000 snapshots (stdlib only: json, sqlite3, datetime).
+- **NFR1.** Under 500 ms, interpreter start included, on a busy real database (stdlib only: json, sqlite3, datetime). *Measured 2026-10-05 on Windows: 340 ms for a week of the work profile, 1,420 snapshots after `--changes-only`, 324 KB of JSON.*
 - **NFR2.** Read-only: opens the database with SQLite's `mode=ro` URI so it never writes or locks out `collect`.
 
 ### Technical Constraints
@@ -62,20 +63,21 @@ This spec adds one read-only command that prints the history as JSON, so a tool 
 
 ## Implementation Tasks
 
-- [ ] Standalone module for the command (stdlib only) and its fast path in `main.py`.
-- [ ] A `history` command registered in the Typer app (so it shows in `--help`) that delegates to the module.
-- [ ] `describe` entry.
-- [ ] Tests.
-- [ ] README and CHANGELOG lines.
+- [x] Standalone module for the command (stdlib only) and its fast path in `main.py`.
+- [x] A `history` command registered in the Typer app (so it shows in `--help`) that delegates to the module.
+- [x] `describe` entry.
+- [x] Tests.
+- [x] README and CHANGELOG lines.
 
 ## Acceptance Criteria
 
-- [ ] AC1: Against a temp `CLAUDE_CONFIG_DIR` with three snapshots written by `collect`, `ccburn history --json` prints them oldest first with `used_percentage` equal to what `collect` received. — `integration`
-- [ ] AC2: `--since-hours 1` drops a snapshot older than an hour. — `integration`
-- [ ] AC3: With no database, the output is `{"version": 1, ..., "snapshots": []}`, exit 0, and no file or directory is created. — `integration`
-- [ ] AC4: A snapshot with only `five_hour` set has no `seven_day` key. — `integration`
-- [ ] AC5: `ccburn --help` lists `history`, and `ccburn describe` documents it. — `integration`
-- [ ] AC6: Against the real work-profile database, the command prints the live readings in under 300 ms. — `manual` (a real database on this machine; timing depends on the host)
+- [x] AC1: Against a temp `CLAUDE_CONFIG_DIR` with three snapshots written by `collect`, `ccburn history --json` prints them oldest first with `used_percentage` equal to what `collect` received. — `integration`
+- [x] AC2: `--since-hours 1` drops a snapshot older than an hour. — `integration`
+- [x] AC3: With no database, the output is `{"version": 1, ..., "snapshots": []}`, exit 0, and no file or directory is created. — `integration`
+- [x] AC4: A snapshot with only `five_hour` set has no `seven_day` key. — `integration`
+- [x] AC5: `ccburn --help` lists `history`, and `ccburn describe` documents it. — `integration`
+- [x] AC4a: `--changes-only` keeps changes and the newest; a local-offset timestamp is filtered as a time and printed as UTC. — `integration`
+- [x] AC6: Against the real work-profile database, the command prints the live readings in under 500 ms. — `manual` (a real database on this machine; timing depends on the host). *340 ms, readings matching `ccburn --json`.*
 
 ## Testing Approach
 

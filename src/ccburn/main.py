@@ -13,6 +13,15 @@ if len(sys.argv) >= 2 and sys.argv[1] == "collect":
     _collect_main()
     sys.exit(0)
 
+# Fast path: `ccburn history` is polled by other tools, so it skips Typer too.
+if len(sys.argv) >= 2 and sys.argv[1] == "history":
+    try:
+        from .history_export import main as _history_main
+    except ImportError:
+        from ccburn.history_export import main as _history_main
+
+    sys.exit(_history_main())
+
 import typer
 
 try:
