@@ -2,7 +2,7 @@
 
 All notable changes to ccburn will be documented in this file.
 
-## [Unreleased]
+## [0.8.0] - 2026-10-05
 
 ### Added
 
