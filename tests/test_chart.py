@@ -140,3 +140,23 @@ class TestComputeDisplayWindow:
         _start, display_end = chart._compute_display_window(window_start, window_end, now)
 
         assert display_end == window_end
+
+
+class TestCreateChart:
+    """Render through the installed plotext, so a breaking plotext release fails CI."""
+
+    def test_renders_chart_with_data(self):
+        chart = _make_chart()
+
+        output = chart._create_chart(80, 20)
+
+        assert isinstance(output, str)
+        assert output.strip()
+
+    def test_renders_empty_chart_without_data(self):
+        chart = _make_chart()
+        chart.limit_data = None
+
+        output = chart._create_chart(80, 20)
+
+        assert "No data available" in output

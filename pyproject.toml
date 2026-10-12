@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "typer[all]>=0.9.0",
     "rich>=13.0.0",
-    "plotext>=5.2.0",
+    "plotext>=5.2.0,<6",  # 6.x removed the module-level API used in display/chart.py
     "httpx>=0.25.0",
     "certifi",
 ]
