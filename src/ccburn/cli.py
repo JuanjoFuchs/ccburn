@@ -131,6 +131,13 @@ DebugOption = typer.Option(
     help="Show debug information including raw API response.",
 )
 
+RecentWindowOption = typer.Option(
+    None,
+    "--recent-window",
+    "-r",
+    help="Limit burn rate calculation to recent data (e.g. '30m', '1h'). Useful after idle periods.",
+)
+
 
 def run_app(
     limit_type: LimitType | None,
@@ -142,6 +149,7 @@ def run_app(
     interval: int = 5,
     poll_interval: int = 60,
     debug: bool = False,
+    recent_window: str | None = None,
 ) -> None:
     """Run the ccburn application with the specified options."""
     try:
@@ -172,6 +180,14 @@ def run_app(
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1) from None
 
+    recent_window_minutes = None
+    if recent_window:
+        try:
+            recent_window_minutes = int(parse_duration(recent_window).total_seconds() / 60)
+        except typer.BadParameter as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1) from None
+
     app = CCBurnApp(
         limit_type=limit_type,
         interval=interval,
@@ -182,6 +198,7 @@ def run_app(
         once=once,
         compact=compact,
         debug=debug,
+        recent_window_minutes=recent_window_minutes,
     )
 
     exit_code = app.run()
@@ -201,6 +218,7 @@ def create_session_command(app: typer.Typer) -> None:
         interval: int = SessionIntervalOption,
         poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
+        recent_window: str | None = RecentWindowOption,
     ) -> None:
         """Display 5-hour rolling session limit.
 
@@ -216,6 +234,7 @@ def create_session_command(app: typer.Typer) -> None:
             interval=interval,
             poll_interval=poll_interval,
             debug=debug,
+            recent_window=recent_window,
         )
 
 
@@ -232,6 +251,7 @@ def create_weekly_command(app: typer.Typer) -> None:
         interval: int = WeeklyIntervalOption,
         poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
+        recent_window: str | None = RecentWindowOption,
     ) -> None:
         """Display 7-day weekly limit (all models).
 
@@ -247,6 +267,7 @@ def create_weekly_command(app: typer.Typer) -> None:
             interval=interval,
             poll_interval=poll_interval,
             debug=debug,
+            recent_window=recent_window,
         )
 
 
@@ -263,6 +284,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
         interval: int = WeeklyIntervalOption,
         poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
+        recent_window: str | None = RecentWindowOption,
     ) -> None:
         """Display 7-day weekly limit (Sonnet only).
 
@@ -278,6 +300,7 @@ def create_weekly_sonnet_command(app: typer.Typer) -> None:
             interval=interval,
             poll_interval=poll_interval,
             debug=debug,
+            recent_window=recent_window,
         )
 
 
@@ -294,6 +317,7 @@ def create_monthly_command(app: typer.Typer) -> None:
         interval: int = MonthlyIntervalOption,
         poll_interval: int = PollIntervalOption,
         debug: bool = DebugOption,
+        recent_window: str | None = RecentWindowOption,
     ) -> None:
         """Display monthly credit usage (enterprise accounts).
 
@@ -310,6 +334,7 @@ def create_monthly_command(app: typer.Typer) -> None:
             interval=interval,
             poll_interval=poll_interval,
             debug=debug,
+            recent_window=recent_window,
         )
 
 

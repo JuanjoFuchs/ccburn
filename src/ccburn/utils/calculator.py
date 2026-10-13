@@ -51,6 +51,7 @@ def calculate_burn_rate(
     window_hours: float,
     min_points: int = 3,
     min_span_pct: float = 0.10,
+    recent_window_minutes: int | None = None,
 ) -> float:
     """Calculate burn rate as percentage points per hour using linear regression.
 
@@ -72,8 +73,10 @@ def calculate_burn_rate(
     if len(snapshots) < 2:
         return 0.0
 
-    # Use actual window start, not now - window_minutes
     cutoff = window_start
+    if recent_window_minutes is not None:
+        recent_cutoff = datetime.now(timezone.utc) - timedelta(minutes=recent_window_minutes)
+        cutoff = max(cutoff, recent_cutoff)
 
     # Filter to snapshots within window and extract (time, utilization) pairs
     points: list[tuple[float, float]] = []  # (hours_from_start, utilization_pct)
@@ -102,7 +105,8 @@ def calculate_burn_rate(
     # Cap at 6 hours max so monthly (744h) doesn't require 3+ days of data
     if first_timestamp and last_timestamp:
         span_hours = (last_timestamp - first_timestamp).total_seconds() / 3600
-        min_span_hours = min(window_hours * min_span_pct, 6.0)
+        effective_window_hours = (recent_window_minutes / 60) if recent_window_minutes is not None else window_hours
+        min_span_hours = min(effective_window_hours * min_span_pct, 6.0)
         if span_hours < min_span_hours:
             return 0.0
 
@@ -217,6 +221,7 @@ def get_status(utilization: float, budget_pace: float) -> str:
 def calculate_burn_metrics(
     limit_data: LimitData | MonthlyLimitData,
     snapshots: list[UsageSnapshot],
+    recent_window_minutes: int | None = None,
 ) -> BurnMetrics:
     """Calculate all burn metrics for a limit.
 
@@ -233,6 +238,7 @@ def calculate_burn_metrics(
         limit_data.limit_type,
         window_start=limit_data.window_start,
         window_hours=limit_data.window_hours,
+        recent_window_minutes=recent_window_minutes,
     )
     time_to_empty = estimate_time_to_empty(limit_data.utilization, burn_rate)
     trend = classify_burn_trend(burn_rate)
